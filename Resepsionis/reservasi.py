@@ -2,8 +2,8 @@
 =====================================================================
 resepsionis/reservasi.py         
 Tabel JSON : reservasi.json, jadwal.json, log_riwayat.json, pasien.json, dokter.json
-Catatan    : fungsi slot_tersedia() dan catat_log() bisa dipakai ulang oleh bagian
-             Pasien bila tim ingin memindahkannya ke modules/reservasi.py.
+Catatan    : fungsi slot_tersedia() dan catat_log() bisa dipakai ulang untuk bagian
+             Pasien bila ingin memindahkannya ke modules/reservasi.py.
 =====================================================================
 """
 from datetime import date, datetime
@@ -11,18 +11,12 @@ from modules import database
 from modules.utils import (bersihkan_layar, jeda, ke_angka, buat_tabel, judul,
                            parse_tanggal, nama_dari, id_berikutnya, sekarang)
 
-HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]   # urutan weekday()
+HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]   
 STATUS_RESERVASI = {"1": "Menunggu", "2": "Dikonfirmasi", "3": "Selesai", "4": "Dibatalkan"}
 
 
-# =====================================================================
-# BAGIAN DATA (proses simpan / hitung)
-# =====================================================================
-# ---------------------------------------------------------------------
-# LOG RIWAYAT (semua perubahan reservasi masuk log_riwayat.json)
-# ---------------------------------------------------------------------
 def catat_log(db, id_reservasi, id_pasien, aksi, detail, user):
-    id_log = id_berikutnya(db["log_riwayat"])             # [JSON] log_riwayat.json
+    id_log = id_berikutnya(db["log_riwayat"])             
     db["log_riwayat"][id_log] = {
         "id_reservasi": id_reservasi,
         "id_pasien": id_pasien,
@@ -41,7 +35,7 @@ def slot_tersedia(db, id_dokter, tanggal, kecuali_id=None):
     Jam yang sudah dipesan (status bukan Dibatalkan) tidak ikut -> mencegah jadwal penuh/bentrok."""
     hari = HARI[tanggal.weekday()]
     semua_jam = []
-    for id_jadwal in db["jadwal"]:                        # [JSON] jadwal.json
+    for id_jadwal in db["jadwal"]:                        
         jadwal = db["jadwal"][id_jadwal]
         if jadwal["id_dokter"] == id_dokter and jadwal["hari"] == hari:
             for jam in jadwal["jam"]:
@@ -49,7 +43,7 @@ def slot_tersedia(db, id_dokter, tanggal, kecuali_id=None):
                     semua_jam.append(jam)
 
     terisi = []
-    for id_res in db["reservasi"]:                        # [JSON] reservasi.json
+    for id_res in db["reservasi"]:                        
         data = db["reservasi"][id_res]
         if (data["id_dokter"] == id_dokter and data["tanggal"] == str(tanggal)
                 and data["status"] != "Dibatalkan" and id_res != kecuali_id):
@@ -63,9 +57,7 @@ def slot_tersedia(db, id_dokter, tanggal, kecuali_id=None):
     return tersedia, hari
 
 
-# ---------------------------------------------------------------------
-# PROSES DATA (CREATE / UPDATE / DELETE)
-# ---------------------------------------------------------------------
+
 def buat_reservasi(db, id_pasien, id_dokter, tanggal, jam, user):
     """Membuat reservasi baru (status Menunggu). Mengembalikan ID reservasi."""
     id_baru = id_berikutnya(db["reservasi"])
@@ -79,7 +71,7 @@ def buat_reservasi(db, id_pasien, id_dokter, tanggal, jam, user):
     }
     catat_log(db, id_baru, id_pasien, "BUAT",
               str(tanggal) + " " + jam + " dengan " + nama_dari(db["dokter"], id_dokter), user)
-    database.simpan(db, ["reservasi", "log_riwayat"])     # [JSON] simpan perubahan
+    database.simpan(db, ["reservasi", "log_riwayat"])    
     return id_baru
 
 
@@ -89,21 +81,21 @@ def ubah_jadwal(db, id_res, tanggal, jam, user):
     data["tanggal"] = str(tanggal)
     data["jam"] = jam
     catat_log(db, id_res, data["id_pasien"], "UBAH", lama + " -> " + data["tanggal"] + " " + data["jam"], user)
-    database.simpan(db, ["reservasi", "log_riwayat"])     # [JSON] simpan perubahan
+    database.simpan(db, ["reservasi", "log_riwayat"])     
 
 
 def batalkan_reservasi(db, id_res, user):
     data = db["reservasi"][id_res]
     data["status"] = "Dibatalkan"
     catat_log(db, id_res, data["id_pasien"], "BATAL", data["tanggal"] + " " + data["jam"], user)
-    database.simpan(db, ["reservasi", "log_riwayat"])     # [JSON] simpan perubahan
+    database.simpan(db, ["reservasi", "log_riwayat"])     
 
 
 def set_konfirmasi(db, id_res, user):
     data = db["reservasi"][id_res]
     data["status"] = "Dikonfirmasi"
     catat_log(db, id_res, data["id_pasien"], "KONFIRMASI", "Pasien hadir, status -> Dikonfirmasi", user)
-    database.simpan(db, ["reservasi", "log_riwayat"])     # [JSON] simpan perubahan
+    database.simpan(db, ["reservasi", "log_riwayat"])     
 
 
 def ubah_status(db, id_res, status_baru, user):
@@ -111,7 +103,6 @@ def ubah_status(db, id_res, status_baru, user):
     data = db["reservasi"][id_res]
     if status_baru == data["status"]:
         return False, "Status tidak berubah."
-    # reservasi Dibatalkan hanya boleh aktif lagi bila slotnya masih kosong
     if data["status"] == "Dibatalkan":
         tanggal = datetime.strptime(data["tanggal"], "%Y-%m-%d").date()
         tersedia, hari = slot_tersedia(db, data["id_dokter"], tanggal, id_res)
@@ -124,9 +115,7 @@ def ubah_status(db, id_res, status_baru, user):
     return True, "Status reservasi diubah: " + lama + " -> " + status_baru
 
 
-# ---------------------------------------------------------------------
-# TAMPILAN TABEL (PrettyTable)
-# ---------------------------------------------------------------------
+
 def daftar_reservasi(db, status_boleh=None):
     """List ID reservasi (status_boleh = list status yang diambil, None = semua)."""
     daftar = []
@@ -166,19 +155,17 @@ def tampil_slot(tersedia):
     print(tabel)
 
 
-# =====================================================================
-# BAGIAN TAMPILAN & MENU
-# =====================================================================
+
 def tampil_pasien_ringkas(db):
     tabel = buat_tabel(["ID", "Nama Pasien", "No. HP"], ["Nama Pasien"])
-    for id_pasien in db["pasien"]:                        # [JSON] pasien.json
+    for id_pasien in db["pasien"]:                        
         tabel.add_row([id_pasien, db["pasien"][id_pasien]["nama"], db["pasien"][id_pasien]["no_hp"]])
     print(tabel)
 
 
 def tampil_dokter_ringkas(db):
     tabel = buat_tabel(["ID", "Nama Dokter", "Spesialisasi"], ["Nama Dokter", "Spesialisasi"])
-    for id_dokter in db["dokter"]:                        # [JSON] dokter.json
+    for id_dokter in db["dokter"]:                       
         tabel.add_row([id_dokter, db["dokter"][id_dokter]["nama"], db["dokter"][id_dokter]["spesialisasi"]])
     print(tabel)
 
@@ -193,9 +180,7 @@ def pilih_slot(tersedia, hari, tanggal):
     return tersedia[pilih - 1]
 
 
-# ---------------------------------------------------------------------
-# FITUR 3 : JADWAL PRAKTIK
-# ---------------------------------------------------------------------
+
 def lihat_jadwal_dokter(db):
     bersihkan_layar()
     judul("JADWAL PRAKTIK DOKTER")
@@ -230,9 +215,7 @@ def cek_slot_tersedia(db):
     jeda()
 
 
-# ---------------------------------------------------------------------
-# FITUR 4 : BUAT RESERVASI MANUAL
-# ---------------------------------------------------------------------
+
 def buat_reservasi_manual(db, user):
     bersihkan_layar()
     judul("BUAT RESERVASI MANUAL")
@@ -282,9 +265,7 @@ def buat_reservasi_manual(db, user):
     jeda()
 
 
-# ---------------------------------------------------------------------
-# FITUR 5 : UBAH / BATALKAN RESERVASI
-# ---------------------------------------------------------------------
+
 def ubah_reservasi_pasien(db, user):
     bersihkan_layar()
     judul("UBAH RESERVASI")
@@ -358,9 +339,7 @@ def batalkan_reservasi_pasien(db, user):
     jeda()
 
 
-# ---------------------------------------------------------------------
-# FITUR 6 : KONFIRMASI KEDATANGAN
-# ---------------------------------------------------------------------
+
 def konfirmasi_kedatangan(db, user):
     bersihkan_layar()
     judul("KONFIRMASI KEDATANGAN PASIEN")
@@ -391,9 +370,7 @@ def konfirmasi_kedatangan(db, user):
     jeda()
 
 
-# ---------------------------------------------------------------------
-# FITUR 7 : KELOLA STATUS RESERVASI
-# ---------------------------------------------------------------------
+
 def kelola_status_reservasi(db, user):
     bersihkan_layar()
     judul("KELOLA STATUS RESERVASI")
@@ -429,9 +406,7 @@ def kelola_status_reservasi(db, user):
     jeda()
 
 
-# ---------------------------------------------------------------------
-# FITUR 8 : LOG RIWAYAT
-# ---------------------------------------------------------------------
+
 def ambil_waktu(item):
     """Kunci pengurutan log: waktu perubahan."""
     return item[1]["waktu"]
@@ -452,10 +427,10 @@ def lihat_log_riwayat(db):
         jeda()
         return
 
-    urut = sorted(db["log_riwayat"].items(), key=ambil_waktu)       # urut berdasarkan waktu
+    urut = sorted(db["log_riwayat"].items(), key=ambil_waktu)       
     tabel = buat_tabel(["No", "Waktu", "ID Res", "Pasien", "Aksi", "Detail", "Oleh"], ["Pasien", "Detail", "Oleh"])
     nomor = 0
-    for id_log, log in urut:                              # [JSON] log_riwayat.json
+    for id_log, log in urut:                              
         if filter_id == "" or log["id_pasien"] == filter_id:
             nomor = nomor + 1
             tabel.add_row([nomor, log["waktu"], log["id_reservasi"],

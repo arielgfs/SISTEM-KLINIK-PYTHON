@@ -43,7 +43,7 @@ def buat_transaksi(db, id_res, user):
     res = db["reservasi"][id_res]
     if res["id_dokter"] not in db["dokter"]:
         return None, "Data dokter reservasi ini sudah tidak ada, tagihan tidak dapat dibuat."
-    biaya_jasa = db["dokter"][res["id_dokter"]]["biaya_jasa"]     # otomatis dari data dokter
+    biaya_jasa = db["dokter"][res["id_dokter"]]["biaya_jasa"]     
     id_trx = id_berikutnya(db["transaksi"])
     db["transaksi"][id_trx] = {
         "id_reservasi": id_res, "id_pasien": res["id_pasien"], "id_dokter": res["id_dokter"],

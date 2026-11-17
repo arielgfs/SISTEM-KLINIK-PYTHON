@@ -44,7 +44,7 @@ def baris(kiri, kanan):
 
 def buat_teks_struk(db, id_trx):
     """Menyusun isi struk (sesuai contoh format struk di dokumen proyek)."""
-    transaksi = db["transaksi"][id_trx]                   # [JSON] transaksi.json
+    transaksi = db["transaksi"][id_trx]                   
     metode = transaksi["metode"]
     if metode == "":
         metode = "-"
@@ -92,11 +92,9 @@ def simpan_struk_file(db, id_trx):
     return jalur
 
 
-# =====================================================================
-# MENU STRUK
-# =====================================================================
+
 def tampil_dan_simpan(db, id_trx):
-    """Menampilkan struk lalu menawarkan simpan ke file .txt (juga dipanggil dari pembayaran.py)."""
+    """Menampilkan struk lalu simpan ke file .txt (juga dipanggil dari pembayaran.py)."""
     bersihkan_layar()
     print(buat_teks_struk(db, id_trx))
     simpan = input("\nSimpan struk ke file .txt? [y/n] : ").strip()
@@ -115,7 +113,7 @@ def menu_struk(db, user):
         return
 
     tabel = buat_tabel(["ID", "No. Transaksi", "Pasien", "Total", "Status"], ["Pasien", "Status"])
-    for id_trx in db["transaksi"]:                        # [JSON] transaksi.json
+    for id_trx in db["transaksi"]:                        
         data = db["transaksi"][id_trx]
         tabel.add_row([id_trx, nomor_transaksi(id_trx), nama_dari(db["pasien"], data["id_pasien"]),
                        format_rupiah(data["total"]), data["status_bayar"]])

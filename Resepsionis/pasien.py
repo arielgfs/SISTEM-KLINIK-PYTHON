@@ -4,7 +4,7 @@ resepsionis/pasien.py
 Fitur  : 1. Mendaftarkan pasien baru
          2. Melihat data pasien dan dokter
          + mengubah data pasien (CRUD Resepsionis)
-Tabel JSON yang dipakai : pasien.json, dokter.json
+Tabel JSON yang dipakai : pasien.json, dokter.json 
 =====================================================================
 """
 from modules import database
