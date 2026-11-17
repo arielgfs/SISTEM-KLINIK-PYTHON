@@ -1,0 +1,10 @@
+{
+    "1": {
+        "id_reservasi": "1",
+        "id_pasien": "1",
+        "aksi": "BUAT",
+        "detail": "2026-11-10 09:00 dengan dr. Andi",
+        "oleh": "resepsionis",
+        "waktu": "2026-11-08 10:00:00"
+    }
+}

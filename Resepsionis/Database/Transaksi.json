@@ -1,0 +1,41 @@
+{
+    "1": {
+        "id_reservasi": "1",
+        "id_pasien": "1",
+        "id_dokter": "1",
+        "biaya_jasa": 100000,
+        "obat": [
+            {
+                "id_obat": "1",
+                "nama": "Paracetamol",
+                "satuan": "strip",
+                "jumlah": 2,
+                "harga_satuan": 10000,
+                "subtotal": 20000
+            },
+            {
+                "id_obat": "2",
+                "nama": "Amoxicillin",
+                "satuan": "strip",
+                "jumlah": 1,
+                "harga_satuan": 15000,
+                "subtotal": 15000
+            },
+            {
+                "id_obat": "3",
+                "nama": "Vitamin C",
+                "satuan": "strip",
+                "jumlah": 1,
+                "harga_satuan": 10000,
+                "subtotal": 10000
+            }
+        ],
+        "total": 145000,
+        "status_bayar": "Lunas",
+        "metode": "Tunai",
+        "tanggal": "2026-11-10",
+        "waktu_bayar": "2026-11-10 10:30:00",
+        "dibuat_oleh": "resepsionis",
+        "diproses_oleh": "resepsionis"
+    }
+}

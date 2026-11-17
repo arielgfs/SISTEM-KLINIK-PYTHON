@@ -1,0 +1,17 @@
+{
+    "1": {
+        "nama": "dr. Andi",
+        "spesialisasi": "Umum",
+        "biaya_jasa": 100000
+    },
+    "2": {
+        "nama": "dr. Sinta, Sp.A",
+        "spesialisasi": "Anak",
+        "biaya_jasa": 150000
+    },
+    "3": {
+        "nama": "dr. Rudi, Sp.PD",
+        "spesialisasi": "Penyakit Dalam",
+        "biaya_jasa": 200000
+    }
+}
