@@ -106,3 +106,9 @@ def tampilkan_tabel(judul, kolom, baris, kiri=(), kanan=()):
 
     print()
     print(tabel)
+
+def cari(nama_tabel, id_cari):
+    for item in db[nama_tabel]:
+        if item["id"] == id_cari:
+            return item
+    return {}
