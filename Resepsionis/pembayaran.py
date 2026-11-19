@@ -8,21 +8,12 @@ from datetime import date
 from modules import database
 from modules.utils import (bersihkan_layar, jeda, ke_angka, buat_tabel, judul, format_rupiah,
                            id_berikutnya, sekarang, nama_dari)
+from modules.pembayaran import hitung_total
+from modules.inventaris import obat_kedaluwarsa, stok_menipis
 from resepsionis import reservasi, struk
 
 STATUS_BAYAR = {"1": "Belum Dibayar", "2": "Menunggu Pembayaran", "3": "Lunas"}
 METODE_BAYAR = {"1": "Tunai", "2": "Transfer"}
-STOK_MINIMUM = 5          
-
-
-
-def hitung_total(transaksi):
-    """Total = biaya jasa dokter + jumlah semua subtotal obat. Hasil juga disimpan di transaksi."""
-    total = transaksi["biaya_jasa"]
-    for item in transaksi["obat"]:
-        total = total + item["subtotal"]
-    transaksi["total"] = total
-    return total
 
 
 
@@ -53,10 +44,6 @@ def buat_transaksi(db, id_res, user):
     }
     database.simpan(db, ["transaksi"])                    
     return id_trx, "Tagihan " + struk.nomor_transaksi(id_trx) + " dibuat (jasa dokter " + format_rupiah(biaya_jasa) + ")."
-
-
-def obat_kedaluwarsa(obat):
-    return obat["kedaluwarsa"] < str(date.today())
 
 
 def tambah_obat(db, id_trx, id_obat, jumlah, user):
@@ -91,7 +78,7 @@ def tambah_obat(db, id_trx, id_obat, jumlah, user):
     hitung_total(transaksi)
     database.simpan(db, ["transaksi", "obat"])           
     pesan = obat["nama"] + " x" + str(jumlah) + " ditambahkan ke tagihan."
-    if obat["stok"] <= STOK_MINIMUM:
+    if stok_menipis(obat):
         pesan = pesan + "\n[!] PERINGATAN: stok " + obat["nama"] + " menipis (sisa " + str(obat["stok"]) + ")."
     return True, pesan
 

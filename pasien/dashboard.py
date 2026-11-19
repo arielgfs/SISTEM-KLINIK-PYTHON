@@ -1,57 +1,61 @@
-from dokterr import lihat_dokter, lihat_layanan
-from jadwal import lihat_jadwal
-from utils import pilih_menu
+from modules import database
+from modules.utils import bersihkan_layar, jeda, pilih_menu
+from pasien.dokter import lihat_dokter, lihat_layanan
+from pasien.jadwal import lihat_jadwal, lihat_slot_tersedia
+from pasien.reservasi import batalkan_reservasi_pasien, reservasi_konsultasi, ubah_reservasi
+from pasien.riwayat import lihat_riwayat, lihat_tagihan
+
+TABEL_PASIEN = ["pasien", "dokter", "layanan", "jadwal", "reservasi", "log_riwayat", "transaksi"]
 
 
-def menu_pasien(username_login, nama_login):
-    login_aktif = True 
+def menu_pasien(user):
+    """Menu utama pasien. Dipanggil dari main.py setelah login."""
+    if user.get("id_pasien") not in database.muat_tabel("pasien"):
+        print("Akun ini belum terhubung dengan data pasien. Hubungi resepsionis.")
+        jeda()
+        return "logout"
 
-    while login_aktif == True:
-        print("Halooo selamaat dataang di klinik kami,", nama_login)
-        pilih_menu(
-            "=== Menu Pasien ===", [
-            ["1", "Lihat dokter dan biaya jasa"],
-            ["2", "Lihat Jenis Layanan"],
-            ["3", "Lihat jadwal dan slot yang tersedia"],
-            ["4", "Reservasi Konsultasi"],
-            ["5", "Ubah atau batalkan reservasi"],
-            ["6", "Lihat status dan Riwayat Reservasi"],
-            ["7", "Lihat Tagihan"],
-            ["8", "Lihat riwayat pembayaran"],
-            ["9", "Lihat dan Unduh Struk"],
-            ["0", "Logout"],    
-        ])
-        pilihan = input("Pilih menu: ")
+    db = database.muat_database(TABEL_PASIEN)
+    daftar_menu = [
+        "Lihat Dokter dan Biaya Jasa",
+        "Lihat Jenis Layanan",
+        "Lihat Jadwal Dokter",
+        "Cek Slot Tersedia",
+        "Buat Reservasi Konsultasi",
+        "Ubah Reservasi",
+        "Batalkan Reservasi",
+        "Lihat Status dan Riwayat Reservasi",
+        "Lihat Tagihan dan Struk",
+        "Logout"
+    ]
 
-        if pilihan == "1":
-            lihat_dokter() 
+    while True:
+        bersihkan_layar()
+        print("Selamat datang di klinik kami,", db["pasien"][user["id_pasien"]]["nama"])
+        pilihan = pilih_menu("MENU PASIEN", daftar_menu)
 
-        elif pilihan == "2":
-            lihat_layanan()
+        if pilihan == 10:
+            bersihkan_layar()
+            print("Logout berhasil")
+            return "logout"
 
-        elif pilihan == "3":
-            lihat_jadwal()
+        if pilihan == 1:
+            lihat_dokter(db)
+        elif pilihan == 2:
+            lihat_layanan(db)
+        elif pilihan == 3:
+            lihat_jadwal(db)
+        elif pilihan == 4:
+            lihat_slot_tersedia(db)
+        elif pilihan == 5:
+            reservasi_konsultasi(db, user)
+        elif pilihan == 6:
+            ubah_reservasi(db, user)
+        elif pilihan == 7:
+            batalkan_reservasi_pasien(db, user)
+        elif pilihan == 8:
+            lihat_riwayat(db, user)
+        elif pilihan == 9:
+            lihat_tagihan(db, user)
 
-        elif pilihan == "4":
-            reservasi_konsultan()
-
-        elif pilihan == "5":
-            ubah_batal_reservasi()
-
-        elif pilihan == "6":
-            lihat_riwayat()
-
-        elif pilihan == "7":
-            lihat_tagihan()
-
-        elif pilihan == "8":
-            riwayat_pemayaran()
-
-        elif pilihan == "9":
-            unduh_struk()
-
-        elif pilihan == "0":
-            login_aktif = False
-
-        else:
-            print("pilihan tidak valid")
+        jeda()

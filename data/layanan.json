@@ -1,0 +1,22 @@
+{
+    "1": {
+        "nama": "Konsultasi Umum",
+        "harga": 50000,
+        "keterangan": "Pemeriksaan dan konsultasi kesehatan umum"
+    },
+    "2": {
+        "nama": "Pemeriksaan Gigi",
+        "harga": 120000,
+        "keterangan": "Pemeriksaan dan perawatan dasar gigi"
+    },
+    "3": {
+        "nama": "Imunisasi Anak",
+        "harga": 90000,
+        "keterangan": "Pemberian vaksin sesuai jadwal imunisasi anak"
+    },
+    "4": {
+        "nama": "Perawatan Kulit",
+        "harga": 250000,
+        "keterangan": "Konsultasi dan perawatan masalah kulit"
+    }
+}
