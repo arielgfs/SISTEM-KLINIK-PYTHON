@@ -1,7 +1,9 @@
 import os
-
+from datetime import datetime 
 import inquirer
 from prettytable import PrettyTable
+
+db = {}
 
 
 def bersihkan_layar():
@@ -112,3 +114,7 @@ def cari(nama_tabel, id_cari):
         if item["id"] == id_cari:
             return item
     return {}
+
+def waktu_sekarang():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
