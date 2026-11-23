@@ -1,15 +1,40 @@
-"""
-=====================================================================
-resepsionis/pasien.py
-Fitur  : 1. Mendaftarkan pasien baru
-         2. Melihat data pasien dan dokter
-         + mengubah data pasien (CRUD Resepsionis)
-Tabel JSON yang dipakai : pasien.json, dokter.json 
-=====================================================================
-"""
+import inquirer
 from modules import database
-from modules.utils import (bersihkan_layar, jeda, buat_tabel, judul,
-                           format_rupiah, id_berikutnya)
+from modules.utils import (bersihkan_layar, jeda, judul, buat_tabel, format_rupiah, id_berikutnya)
+
+
+def pilih_menu(pesan, daftar_menu):
+    jawaban = inquirer.prompt([inquirer.List("menu", message=pesan, choices=daftar_menu)])
+    if jawaban == None:
+        return daftar_menu[-1]
+    return jawaban["menu"]
+
+
+def pilih_data(pesan, pilihan, label_batal="<< Batal"):
+    daftar = list(pilihan)
+    daftar.append((label_batal, None))
+    jawaban = inquirer.prompt([inquirer.List("data", message=pesan, choices=daftar)])
+    if jawaban == None:
+        return None
+    return jawaban["data"]
+
+
+def konfirmasi(pesan):
+    jawaban = inquirer.prompt([inquirer.Confirm("ya", message=pesan, default=False)])
+    if jawaban == None:
+        return False
+    return jawaban["ya"]
+
+
+def tanya(pesan, awal=""):
+    if awal == "":
+        pertanyaan = inquirer.Text("isi", message=pesan)
+    else:
+        pertanyaan = inquirer.Text("isi", message=pesan, default=awal)
+    jawaban = inquirer.prompt([pertanyaan])
+    if jawaban == None:
+        return ""
+    return jawaban["isi"].strip()
 
 
 def valid_no_hp(teks):
@@ -17,15 +42,32 @@ def valid_no_hp(teks):
 
 
 def no_hp_terpakai(db, no_hp, kecuali_id=None):
-    for id_pasien in db["pasien"]:                        # [JSON] pasien.json
+    for id_pasien in db["pasien"]:                        
         if id_pasien != kecuali_id and db["pasien"][id_pasien]["no_hp"] == no_hp:
             return True
     return False
 
 
+def pilihan_pasien(db):
+    pilihan = []
+    for id_pasien in db["pasien"]:                        
+        data = db["pasien"][id_pasien]
+        pilihan.append((id_pasien + " | " + data["nama"] + " | " + data["no_hp"], id_pasien))
+    return pilihan
+
+
+def pilihan_dokter(db):
+    pilihan = []
+    for id_dokter in db["dokter"]:                        
+        data = db["dokter"][id_dokter]
+        pilihan.append((id_dokter + " | " + data["nama"] + " | " + data["spesialisasi"]
+                        + " | " + format_rupiah(data["biaya_jasa"]), id_dokter))
+    return pilihan
+
+
 def tampil_tabel_pasien(db):
     tabel = buat_tabel(["ID", "Nama", "No. HP", "Alamat"], ["Nama", "Alamat"])
-    for id_pasien in db["pasien"]:                        # [JSON] pasien.json
+    for id_pasien in db["pasien"]:                        
         data = db["pasien"][id_pasien]
         tabel.add_row([id_pasien, data["nama"], data["no_hp"], data["alamat"]])
     print(tabel)
@@ -33,22 +75,23 @@ def tampil_tabel_pasien(db):
 
 def tampil_tabel_dokter(db):
     tabel = buat_tabel(["ID", "Nama Dokter", "Spesialisasi", "Biaya Jasa"], ["Nama Dokter", "Spesialisasi"])
-    for id_dokter in db["dokter"]:                        # [JSON] dokter.json
+    for id_dokter in db["dokter"]:                        
         data = db["dokter"][id_dokter]
         tabel.add_row([id_dokter, data["nama"], data["spesialisasi"], format_rupiah(data["biaya_jasa"])])
     print(tabel)
 
 
+
 def tambah_pasien(db, user):
     bersihkan_layar()
     judul("DAFTAR PASIEN BARU")
-    nama = input("Nama lengkap : ").strip()
+    nama = tanya("Nama lengkap")
     if nama == "":
         print("\n[!] Nama tidak boleh kosong, data batal disimpan.")
         jeda()
         return
 
-    no_hp = input("No. HP (10-13 angka) : ").strip()
+    no_hp = tanya("No. HP (10-13 angka)")
     if valid_no_hp(no_hp) == False:
         print("\n[!] No. HP harus 10-13 digit angka, data batal disimpan.")
         jeda()
@@ -58,7 +101,7 @@ def tambah_pasien(db, user):
         jeda()
         return
 
-    alamat = input("Alamat : ").strip()
+    alamat = tanya("Alamat")
     if alamat == "":
         print("\n[!] Alamat tidak boleh kosong, data batal disimpan.")
         jeda()
@@ -66,7 +109,7 @@ def tambah_pasien(db, user):
 
     id_baru = id_berikutnya(db["pasien"])
     db["pasien"][id_baru] = {"nama": nama, "no_hp": no_hp, "alamat": alamat}
-    database.simpan(db, ["pasien"])                       # [JSON] simpan ke pasien.json
+    database.simpan(db, ["pasien"])                       
     print("\n[+] Pasien '" + nama + "' berhasil didaftarkan dengan ID " + id_baru + ".")
     jeda()
 
@@ -79,36 +122,28 @@ def ubah_pasien(db, user):
         jeda()
         return
 
-    tampil_tabel_pasien(db)
-    id_pasien = input("Masukkan ID pasien yang diubah : ").strip()
-    if id_pasien not in db["pasien"]:
-        print("\n[!] Pasien dengan ID " + id_pasien + " tidak ditemukan.")
-        jeda()
+    id_pasien = pilih_data("Pilih pasien yang diubah", pilihan_pasien(db))
+    if id_pasien == None:
         return
 
     data = db["pasien"][id_pasien]
-    print("\n(kosongkan lalu Enter bila tidak ingin mengubah)")
-    nama_baru = input("Nama [" + data["nama"] + "] : ").strip()
-    no_hp_baru = input("No. HP [" + data["no_hp"] + "] : ").strip()
-    alamat_baru = input("Alamat [" + data["alamat"] + "] : ").strip()
+    print("(tekan Enter bila tidak ingin mengubah isian)")
+    nama_baru = tanya("Nama", data["nama"])
+    no_hp_baru = tanya("No. HP", data["no_hp"])
+    alamat_baru = tanya("Alamat", data["alamat"])
 
-    if no_hp_baru != "":
-        if valid_no_hp(no_hp_baru) == False:
-            print("\n[!] No. HP harus 10-13 digit angka, perubahan dibatalkan.")
-            jeda()
-            return
-        if no_hp_terpakai(db, no_hp_baru, id_pasien):
-            print("\n[!] No. HP sudah terdaftar atas pasien lain, perubahan dibatalkan.")
-            jeda()
-            return
-        data["no_hp"] = no_hp_baru
-    if nama_baru != "":
+    if nama_baru == "" or alamat_baru == "":
+        print("\n[!] Nama dan alamat tidak boleh kosong, perubahan dibatalkan.")
+    elif valid_no_hp(no_hp_baru) == False:
+        print("\n[!] No. HP harus 10-13 digit angka, perubahan dibatalkan.")
+    elif no_hp_terpakai(db, no_hp_baru, id_pasien):
+        print("\n[!] No. HP sudah terdaftar atas pasien lain, perubahan dibatalkan.")
+    else:
         data["nama"] = nama_baru
-    if alamat_baru != "":
+        data["no_hp"] = no_hp_baru
         data["alamat"] = alamat_baru
-
-    database.simpan(db, ["pasien"])                       # [JSON] simpan ke pasien.json
-    print("\n[+] Data pasien berhasil diubah.")
+        database.simpan(db, ["pasien"])                   
+        print("\n[+] Data pasien berhasil diubah.")
     jeda()
 
 
@@ -135,29 +170,26 @@ def lihat_dokter(db):
 
 
 def menu_pasien(db, user):
+    daftar_menu = [
+        "Daftarkan Pasien Baru",
+        "Ubah Data Pasien",
+        "Lihat Data Pasien",
+        "Lihat Data Dokter",
+        "Kembali ke Dashboard"
+    ]
     jalan = True
     while jalan:
         bersihkan_layar()
         judul("KELOLA PASIEN")
-        tabel = buat_tabel(["No", "Menu"], ["Menu"])
-        tabel.add_row([1, "Daftarkan pasien baru"])
-        tabel.add_row([2, "Ubah data pasien"])
-        tabel.add_row([3, "Lihat data pasien"])
-        tabel.add_row([4, "Lihat data dokter"])
-        tabel.add_row([0, "Kembali ke dashboard"])
-        print(tabel)
-        pilihan = input("Pilih menu [0-4] : ").strip()
+        pilihan = pilih_menu("Pilih menu (panah atas/bawah, Enter untuk memilih)", daftar_menu)
 
-        if pilihan == "1":
+        if pilihan == "Daftarkan Pasien Baru":
             tambah_pasien(db, user)
-        elif pilihan == "2":
+        elif pilihan == "Ubah Data Pasien":
             ubah_pasien(db, user)
-        elif pilihan == "3":
+        elif pilihan == "Lihat Data Pasien":
             lihat_pasien(db)
-        elif pilihan == "4":
+        elif pilihan == "Lihat Data Dokter":
             lihat_dokter(db)
-        elif pilihan == "0":
+        elif pilihan == "Kembali ke Dashboard":
             jalan = False
-        else:
-            print("\n[!] Pilihan tidak tersedia, pilih 0 sampai 4.")
-            jeda()
