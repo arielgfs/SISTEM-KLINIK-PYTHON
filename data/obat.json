@@ -1,0 +1,34 @@
+{
+    "1": {
+        "nama": "Paracetamol",
+        "kategori": "Pereda nyeri",
+        "satuan": "strip",
+        "harga": 10000,
+        "stok": 50,
+        "kedaluwarsa": "2027-12-31"
+    },
+    "2": {
+        "nama": "Amoxicillin",
+        "kategori": "Antibiotik",
+        "satuan": "strip",
+        "harga": 15000,
+        "stok": 30,
+        "kedaluwarsa": "2027-06-30"
+    },
+    "3": {
+        "nama": "Vitamin C",
+        "kategori": "Suplemen",
+        "satuan": "strip",
+        "harga": 10000,
+        "stok": 6,
+        "kedaluwarsa": "2027-03-31"
+    },
+    "4": {
+        "nama": "Antasida",
+        "kategori": "Obat lambung",
+        "satuan": "botol",
+        "harga": 12000,
+        "stok": 20,
+        "kedaluwarsa": "2027-09-30"
+    }
+}

@@ -29,6 +29,23 @@ def reservasi_siap_tagih(db):
     return daftar
 
 
+def buat_transaksi(db, id_res, user):
+    """Membuat tagihan baru. Mengembalikan (id_transaksi atau None, pesan)."""
+    res = db["reservasi"][id_res]
+    if res["id_dokter"] not in db["dokter"]:
+        return None, "Data dokter reservasi ini sudah tidak ada, tagihan tidak dapat dibuat."
+    biaya_jasa = db["dokter"][res["id_dokter"]]["biaya_jasa"]     
+    id_trx = id_berikutnya(db["transaksi"])
+    db["transaksi"][id_trx] = {
+        "id_reservasi": id_res, "id_pasien": res["id_pasien"], "id_dokter": res["id_dokter"],
+        "biaya_jasa": biaya_jasa, "obat": [], "total": biaya_jasa,
+        "status_bayar": "Belum Dibayar", "metode": "", "tanggal": str(date.today()),
+        "waktu_bayar": "", "dibuat_oleh": user, "diproses_oleh": ""
+    }
+    database.simpan(db, ["transaksi"])                    
+    return id_trx, "Tagihan " + struk.nomor_transaksi(id_trx) + " dibuat (jasa dokter " + format_rupiah(biaya_jasa) + ")."
+
+
 def tambah_obat(db, id_trx, id_obat, jumlah, user):
     transaksi = db["transaksi"][id_trx]
     if transaksi["status_bayar"] == "Lunas":
@@ -57,7 +74,7 @@ def tambah_obat(db, id_trx, id_obat, jumlah, user):
     database.simpan(db, ["transaksi", "obat"])            
 
     pesan = obat["nama"] + " x" + str(jumlah) + " ditambahkan ke tagihan."
-    if obat["stok"] <= STOK_MINIMUM:
+    if stok_menipis(obat):
         pesan = pesan + "\n[!] PERINGATAN: stok " + obat["nama"] + " menipis (sisa " + str(obat["stok"]) + ")."
     return True, pesan
 

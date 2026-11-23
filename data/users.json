@@ -1,0 +1,24 @@
+{
+    "admin": {
+        "password": "admin123",
+        "role": "admin",
+        "nama": "Administrator"
+    },
+    "resepsionis": {
+        "password": "resepsionis123",
+        "role": "resepsionis",
+        "nama": "Resepsionis"
+    },
+    "ariel": {
+        "password": "ariel123",
+        "role": "pasien",
+        "nama": "Ariel",
+        "id_pasien": "1"
+    },
+    "budi": {
+        "password": "budi123",
+        "role": "pasien",
+        "nama": "Budi Santoso",
+        "id_pasien": "2"
+    }
+}
