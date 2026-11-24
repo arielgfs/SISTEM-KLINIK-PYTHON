@@ -1,11 +1,10 @@
-import os
-
+import inquirer
 from datetime import date
 from modules import database
-from modules.utils import bersihkan_layar, jeda, buat_tabel, judul
+from modules.utils import bersihkan_layar, buat_tabel, judul
 from resepsionis import pasien, reservasi, pembayaran
 
-# [JSON] tabel (file di data/) yang dibaca & diubah oleh resepsionis
+
 TABEL_RESEPSIONIS = ["pasien", "dokter", "jadwal", "reservasi", "log_riwayat", "obat", "transaksi"]
 
 
@@ -37,33 +36,44 @@ def tampil_ringkasan(db, username):
     print(tabel)
 
 
+def pilih_menu(daftar_menu):
+    pertanyaan = [
+        inquirer.List(
+            "menu",
+            message="Pilih menu (panah atas/bawah, Enter untuk memilih)",
+            choices=daftar_menu
+        )
+    ]
+    jawaban = inquirer.prompt(pertanyaan)
+    if jawaban == None:
+        return "Logout"
+    return jawaban["menu"]
+
+
 def menu_resepsionis(username="resepsionis"):
-    """Menu utama resepsionis. Dipanggil dari main.py setelah login."""
-    db = database.muat_database(TABEL_RESEPSIONIS)        # [JSON] ambil data
+    db = database.muat_database(TABEL_RESEPSIONIS)
+    daftar_menu = [
+        "Kelola Pasien",
+        "Kelola Reservasi",
+        "Kelola Pembayaran",
+        "Logout"
+    ]
+
     sesi_jalan = True
     while sesi_jalan:
         bersihkan_layar()
         tampil_ringkasan(db, username)
-        tabel = buat_tabel(["No", "Menu"], ["Menu"])
-        tabel.add_row([1, "Kelola Pasien (daftar, ubah, lihat pasien & dokter)"])
-        tabel.add_row([2, "Kelola Reservasi (jadwal, reservasi, status, log)"])
-        tabel.add_row([3, "Kelola Pembayaran (obat resep, tagihan, bayar, struk)"])
-        tabel.add_row([0, "Logout"])
-        print(tabel)
-        pilihan = input("Pilih menu [0-3] : ").strip()
+        pilihan = pilih_menu(daftar_menu)
 
-        if pilihan == "1":
+        if pilihan == "Kelola Pasien":
             pasien.menu_pasien(db, username)
-        elif pilihan == "2":
+        elif pilihan == "Kelola Reservasi":
             reservasi.menu_reservasi(db, username)
-        elif pilihan == "3":
+        elif pilihan == "Kelola Pembayaran":
             pembayaran.menu_pembayaran(db, username)
-        elif pilihan == "0":
+        elif pilihan == "Logout":
             print("\n[*] Logout berhasil, kembali ke menu utama.")
             sesi_jalan = False
-        else:
-            print("\n[!] Pilihan tidak tersedia, pilih 0 sampai 3.")
-            jeda("Tekan Enter untuk melanjutkan...")
 
 
 if __name__ == "__main__":

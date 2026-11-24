@@ -1,38 +1,21 @@
-"""
-=====================================================================
-resepsionis/pembayaran.py
-Tabel JSON : transaksi.json, reservasi.json, obat.json, pasien.json, dokter.json
-=====================================================================
-"""
 from datetime import date
 from modules import database
-from modules.utils import (bersihkan_layar, jeda, ke_angka, buat_tabel, judul, format_rupiah,
-                           id_berikutnya, sekarang, nama_dari)
-from resepsionis import reservasi, struk
+from modules.utils import (bersihkan_layar, jeda, judul, buat_tabel, ke_angka, format_rupiah, id_berikutnya, sekarang, nama_dari)
+from modules.pembayaran import hitung_total
+from modules.inventaris import stok_menipis
+from resepsionis import pasien, struk
+from resepsionis.pasien import pilih_menu, pilih_data, konfirmasi, tanya
 
-STATUS_BAYAR = {"1": "Belum Dibayar", "2": "Menunggu Pembayaran", "3": "Lunas"}
-METODE_BAYAR = {"1": "Tunai", "2": "Transfer"}
-STOK_MINIMUM = 5          
-
-
-
-def hitung_total(transaksi):
-    """Total = biaya jasa dokter + jumlah semua subtotal obat. Hasil juga disimpan di transaksi."""
-    total = transaksi["biaya_jasa"]
-    for item in transaksi["obat"]:
-        total = total + item["subtotal"]
-    transaksi["total"] = total
-    return total
-
+STATUS_BAYAR = ["Belum Dibayar", "Menunggu Pembayaran", "Lunas"]
+METODE_BAYAR = ["Tunai", "Transfer"]
 
 
 def reservasi_siap_tagih(db):
-    """ID reservasi berstatus Dikonfirmasi / Selesai yang belum punya tagihan."""
     sudah = []
-    for id_trx in db["transaksi"]:                        
+    for id_trx in db["transaksi"]:
         sudah.append(db["transaksi"][id_trx]["id_reservasi"])
     daftar = []
-    for id_res in db["reservasi"]:                        
+    for id_res in db["reservasi"]:
         if db["reservasi"][id_res]["status"] in ("Dikonfirmasi", "Selesai") and id_res not in sudah:
             daftar.append(id_res)
     return daftar
@@ -43,7 +26,7 @@ def buat_transaksi(db, id_res, user):
     res = db["reservasi"][id_res]
     if res["id_dokter"] not in db["dokter"]:
         return None, "Data dokter reservasi ini sudah tidak ada, tagihan tidak dapat dibuat."
-    biaya_jasa = db["dokter"][res["id_dokter"]]["biaya_jasa"]     
+    biaya_jasa = db["dokter"][res["id_dokter"]]["biaya_jasa"]
     id_trx = id_berikutnya(db["transaksi"])
     db["transaksi"][id_trx] = {
         "id_reservasi": id_res, "id_pasien": res["id_pasien"], "id_dokter": res["id_dokter"],
@@ -51,30 +34,21 @@ def buat_transaksi(db, id_res, user):
         "status_bayar": "Belum Dibayar", "metode": "", "tanggal": str(date.today()),
         "waktu_bayar": "", "dibuat_oleh": user, "diproses_oleh": ""
     }
-    database.simpan(db, ["transaksi"])                    
+    database.simpan(db, ["transaksi"])
     return id_trx, "Tagihan " + struk.nomor_transaksi(id_trx) + " dibuat (jasa dokter " + format_rupiah(biaya_jasa) + ")."
 
 
-def obat_kedaluwarsa(obat):
-    return obat["kedaluwarsa"] < str(date.today())
-
-
 def tambah_obat(db, id_trx, id_obat, jumlah, user):
-    """Menambah obat resep ke tagihan. Stok obat berkurang otomatis.
-    Mengembalikan (berhasil, pesan)."""
     transaksi = db["transaksi"][id_trx]
     if transaksi["status_bayar"] == "Lunas":
         return False, "Transaksi sudah Lunas, obat tidak dapat ditambahkan."
-    if id_obat not in db["obat"]:                         
-        return False, "Obat dengan ID " + id_obat + " tidak ditemukan."
     obat = db["obat"][id_obat]
-    if obat_kedaluwarsa(obat):
+    if obat["kedaluwarsa"] < str(date.today()):
         return False, "Obat '" + obat["nama"] + "' sudah kedaluwarsa, tidak boleh diberikan."
     if jumlah < 1:
         return False, "Jumlah harus lebih dari 0."
     if jumlah > obat["stok"]:
         return False, "Stok tidak cukup. Stok tersedia : " + str(obat["stok"])
-
 
     item = None
     for baris in transaksi["obat"]:
@@ -87,66 +61,46 @@ def tambah_obat(db, id_trx, id_obat, jumlah, user):
     item["jumlah"] = item["jumlah"] + jumlah
     item["subtotal"] = item["jumlah"] * item["harga_satuan"]
 
-    obat["stok"] = obat["stok"] - jumlah                  
+    obat["stok"] = obat["stok"] - jumlah
     hitung_total(transaksi)
-    database.simpan(db, ["transaksi", "obat"])           
+    database.simpan(db, ["transaksi", "obat"])
+
     pesan = obat["nama"] + " x" + str(jumlah) + " ditambahkan ke tagihan."
-    if obat["stok"] <= STOK_MINIMUM:
+    if stok_menipis(obat):
         pesan = pesan + "\n[!] PERINGATAN: stok " + obat["nama"] + " menipis (sisa " + str(obat["stok"]) + ")."
     return True, pesan
 
 
-
 def set_status_bayar(db, id_trx, status, metode, user):
-    """Memperbarui status pembayaran (dipakai proses bayar & ubah status)."""
     transaksi = db["transaksi"][id_trx]
     transaksi["status_bayar"] = status
     transaksi["metode"] = metode
     transaksi["diproses_oleh"] = user
     if status == "Lunas":
         transaksi["waktu_bayar"] = sekarang()
-    database.simpan(db, ["transaksi"])                    
+    database.simpan(db, ["transaksi"])
 
 
-
-def tampil_tabel_dokter_harga(db):
-    tabel = buat_tabel(["ID", "Nama Dokter", "Spesialisasi", "Biaya Jasa"], ["Nama Dokter", "Spesialisasi"])
-    for id_dokter in db["dokter"]:                        
-        data = db["dokter"][id_dokter]
-        tabel.add_row([id_dokter, data["nama"], data["spesialisasi"], format_rupiah(data["biaya_jasa"])])
-    print(tabel)
+def pilihan_transaksi(db, status_boleh):
+    pilihan = []
+    for id_trx in db["transaksi"]:
+        data = db["transaksi"][id_trx]
+        if data["status_bayar"] in status_boleh:
+            pilihan.append((struk.nomor_transaksi(id_trx) + " | " + nama_dari(db["pasien"], data["id_pasien"])
+                            + " | " + format_rupiah(data["total"]) + " | " + data["status_bayar"], id_trx))
+    return pilihan
 
 
 def tampil_tabel_obat(db):
     tabel = buat_tabel(["ID", "Nama Obat", "Kategori", "Harga", "Stok", "Kedaluwarsa"], ["Nama Obat", "Kategori"])
-    for id_obat in db["obat"]:                            
+    for id_obat in db["obat"]:
         data = db["obat"][id_obat]
         tabel.add_row([id_obat, data["nama"], data["kategori"], format_rupiah(data["harga"]) + "/" + data["satuan"],
                        data["stok"], data["kedaluwarsa"]])
     print(tabel)
 
 
-def daftar_transaksi(db, hanya_belum_lunas=False):
-    daftar = []
-    for id_trx in db["transaksi"]:
-        if hanya_belum_lunas == False or db["transaksi"][id_trx]["status_bayar"] != "Lunas":
-            daftar.append(id_trx)
-    return daftar
-
-
-def tampil_tabel_transaksi(db, daftar):
-    tabel = buat_tabel(["ID", "No. Transaksi", "Pasien", "Dokter", "Tanggal", "Total", "Status"],
-                       ["Pasien", "Dokter", "Status"])
-    for id_trx in daftar:
-        data = db["transaksi"][id_trx]
-        tabel.add_row([id_trx, struk.nomor_transaksi(id_trx), nama_dari(db["pasien"], data["id_pasien"]),
-                       nama_dari(db["dokter"], data["id_dokter"]), data["tanggal"],
-                       format_rupiah(data["total"]), data["status_bayar"]])
-    print(tabel)
-
-
 def tampil_rincian(db, id_trx):
-    """Rincian tagihan: jasa dokter + obat + total."""
     data = db["transaksi"][id_trx]
     print(" No. Transaksi : " + struk.nomor_transaksi(id_trx))
     print(" Pasien        : " + nama_dari(db["pasien"], data["id_pasien"]))
@@ -163,7 +117,6 @@ def tampil_rincian(db, id_trx):
     print(" Status pembayaran: " + data["status_bayar"])
 
 
-
 def lihat_harga(db):
     bersihkan_layar()
     judul("HARGA JASA DOKTER & HARGA OBAT")
@@ -171,7 +124,7 @@ def lihat_harga(db):
     if len(db["dokter"]) == 0:
         print(" (belum ada data dokter)")
     else:
-        tampil_tabel_dokter_harga(db)
+        pasien.tampil_tabel_dokter(db)
     print("\n Harga obat :")
     if len(db["obat"]) == 0:
         print(" (belum ada data obat)")
@@ -180,25 +133,24 @@ def lihat_harga(db):
     jeda()
 
 
-
 def input_obat_resep(db, id_trx, user):
-    """Loop input obat sesuai resep dokter. Stok berkurang otomatis."""
     selesai = False
     while selesai == False:
         bersihkan_layar()
         judul("INPUT OBAT RESEP DOKTER")
         tampil_rincian(db, id_trx)
-        print("\n Daftar obat :")
-        tampil_tabel_obat(db)
-        id_obat = input("ID obat (0 = selesai) : ").strip()
 
-        if id_obat == "0":
+        pilihan = []
+        for id_obat in db["obat"]:
+            obat = db["obat"][id_obat]
+            pilihan.append((obat["nama"] + " | " + format_rupiah(obat["harga"]) + "/" + obat["satuan"]
+                            + " | stok " + str(obat["stok"]) + " | exp " + obat["kedaluwarsa"], id_obat))
+        id_obat = pilih_data("Pilih obat resep", pilihan, "<< Selesai (tidak ada obat lagi)")
+
+        if id_obat == None:
             selesai = True
-        elif id_obat not in db["obat"]:
-            print("\n[!] Obat dengan ID " + id_obat + " tidak ditemukan.")
-            jeda("Tekan Enter...")
         else:
-            jumlah = ke_angka(input("Jumlah (" + db["obat"][id_obat]["satuan"] + ") : ").strip())
+            jumlah = ke_angka(tanya("Jumlah (" + db["obat"][id_obat]["satuan"] + ")"))
             if jumlah == None:
                 print("\n[!] Jumlah harus berupa angka.")
             else:
@@ -213,19 +165,14 @@ def input_obat_resep(db, id_trx, user):
 def tambah_obat_ke_tagihan(db, user):
     bersihkan_layar()
     judul("TAMBAH OBAT RESEP KE TAGIHAN")
-    daftar = daftar_transaksi(db, True)
-    if len(daftar) == 0:
+    pilihan = pilihan_transaksi(db, ["Belum Dibayar", "Menunggu Pembayaran"])
+    if len(pilihan) == 0:
         print(" Tidak ada tagihan yang belum lunas.")
         jeda()
         return
-    tampil_tabel_transaksi(db, daftar)
-    id_trx = input("ID transaksi : ").strip()
-    if id_trx not in daftar:
-        print("\n[!] ID tidak ada dalam daftar tagihan belum lunas.")
-        jeda()
-        return
-    input_obat_resep(db, id_trx, user)
-
+    id_trx = pilih_data("Pilih tagihan", pilihan)
+    if id_trx != None:
+        input_obat_resep(db, id_trx, user)
 
 
 def buat_tagihan(db, user):
@@ -237,24 +184,38 @@ def buat_tagihan(db, user):
         jeda()
         return
 
-    reservasi.tampil_tabel_reservasi(db, daftar)
-    id_res = input("ID reservasi yang ditagih : ").strip()
-    if id_res not in daftar:
-        print("\n[!] ID tidak ada dalam daftar reservasi yang siap ditagih.")
+    pilihan = []
+    for id_res in daftar:
+        data = db["reservasi"][id_res]
+        pilihan.append((id_res + " | " + nama_dari(db["pasien"], data["id_pasien"])
+                        + " | " + nama_dari(db["dokter"], data["id_dokter"])
+                        + " | " + data["tanggal"] + " " + data["jam"] + " | " + data["status"], id_res))
+    id_res = pilih_data("Pilih reservasi yang ditagih", pilihan)
+    if id_res == None:
+        return
+
+    res = db["reservasi"][id_res]
+    if res["id_dokter"] not in db["dokter"]:
+        print("\n[!] Data dokter reservasi ini sudah tidak ada, tagihan tidak dapat dibuat.")
         jeda()
         return
 
-    id_trx, pesan = buat_transaksi(db, id_res, user)
-    if id_trx == None:
-        print("\n[!] " + pesan)
-        jeda()
-        return
-    print("\n[+] " + pesan)
+    biaya_jasa = db["dokter"][res["id_dokter"]]["biaya_jasa"]
+    id_trx = id_berikutnya(db["transaksi"])
+    db["transaksi"][id_trx] = {
+        "id_reservasi": id_res, "id_pasien": res["id_pasien"], "id_dokter": res["id_dokter"],
+        "biaya_jasa": biaya_jasa, "obat": [], "total": biaya_jasa,
+        "status_bayar": "Belum Dibayar", "metode": "", "tanggal": str(date.today()),
+        "waktu_bayar": "", "dibuat_oleh": user, "diproses_oleh": ""
+    }
+    database.simpan(db, ["transaksi"])
+    print("\n[+] Tagihan " + struk.nomor_transaksi(id_trx) + " dibuat (jasa dokter " + format_rupiah(biaya_jasa) + ").")
 
-    ada_resep = input("Dokter memberikan resep obat? [y/n] : ").strip()
-    if ada_resep == "y" or ada_resep == "Y":
+    if konfirmasi("Dokter memberikan resep obat?"):
         input_obat_resep(db, id_trx, user)
 
+    hitung_total(db["transaksi"][id_trx])
+    database.simpan(db, ["transaksi"])
     bersihkan_layar()
     judul("TAGIHAN BERHASIL DIBUAT")
     tampil_rincian(db, id_trx)
@@ -264,81 +225,69 @@ def buat_tagihan(db, user):
 def lihat_daftar_tagihan(db):
     bersihkan_layar()
     judul("DAFTAR TAGIHAN & RIWAYAT TRANSAKSI")
-    daftar = daftar_transaksi(db)
-    if len(daftar) == 0:
+    pilihan = pilihan_transaksi(db, STATUS_BAYAR)
+    if len(pilihan) == 0:
         print(" Belum ada tagihan.")
         jeda()
         return
-    tampil_tabel_transaksi(db, daftar)
-    id_trx = input("\nID transaksi untuk lihat rincian (Enter = kembali) : ").strip()
-    if id_trx != "":
-        if id_trx in db["transaksi"]:
-            print("")
-            tampil_rincian(db, id_trx)
-        else:
-            print("\n[!] ID transaksi tidak ditemukan.")
-        jeda()
 
-
-
-def pilih_metode():
-    tabel = buat_tabel(["No", "Metode Pembayaran"], ["Metode Pembayaran"])
-    for kunci in METODE_BAYAR:
-        tabel.add_row([kunci, METODE_BAYAR[kunci]])
+    tabel = buat_tabel(["ID", "No. Transaksi", "Pasien", "Dokter", "Tanggal", "Total", "Status"], ["Pasien", "Dokter", "Status"])
+    for id_trx in db["transaksi"]:
+        data = db["transaksi"][id_trx]
+        tabel.add_row([id_trx, struk.nomor_transaksi(id_trx), nama_dari(db["pasien"], data["id_pasien"]),
+                       nama_dari(db["dokter"], data["id_dokter"]), data["tanggal"],
+                       format_rupiah(data["total"]), data["status_bayar"]])
     print(tabel)
-    pilih = input("Metode [1/2] : ").strip()
-    if pilih in METODE_BAYAR:
-        return METODE_BAYAR[pilih]
-    return None
+
+    id_trx = pilih_data("Pilih tagihan untuk melihat rincian", pilihan, "<< Kembali")
+    if id_trx != None:
+        print("")
+        tampil_rincian(db, id_trx)
+        jeda()
 
 
 def proses_pembayaran(db, user):
     bersihkan_layar()
     judul("PROSES PEMBAYARAN")
-    daftar = daftar_transaksi(db, True)
-    if len(daftar) == 0:
+    pilihan = pilihan_transaksi(db, ["Belum Dibayar", "Menunggu Pembayaran"])
+    if len(pilihan) == 0:
         print(" Tidak ada tagihan yang belum lunas.")
         jeda()
         return
 
-    tampil_tabel_transaksi(db, daftar)
-    id_trx = input("ID transaksi yang dibayar : ").strip()
-    if id_trx not in daftar:
-        print("\n[!] ID tidak ada dalam daftar tagihan belum lunas.")
-        jeda()
+    id_trx = pilih_data("Pilih tagihan yang dibayar", pilihan)
+    if id_trx == None:
         return
 
     print("")
     tampil_rincian(db, id_trx)
     total = db["transaksi"][id_trx]["total"]
-    metode = pilih_metode()
+    pilihan_metode = []
+    for metode in METODE_BAYAR:
+        pilihan_metode.append((metode, metode))
+    metode = pilih_data("Pilih metode pembayaran", pilihan_metode)
     if metode == None:
-        print("\n[!] Metode pembayaran tidak tersedia.")
-        jeda()
         return
 
     status = "Lunas"
     kembalian = 0
     if metode == "Tunai":
-        uang = ke_angka(input("Uang diterima : Rp").strip())
+        uang = ke_angka(tanya("Uang diterima (Rp, angka saja)"))
         if uang == None or uang < total:
             print("\n[!] Uang kurang / tidak valid. Pembayaran belum diproses.")
             jeda()
             return
         kembalian = uang - total
     else:
-        bukti = input("Bukti transfer sudah diterima? [y/n] : ").strip()
-        if bukti != "y" and bukti != "Y":
+        if konfirmasi("Bukti transfer sudah diterima?") == False:
             status = "Menunggu Pembayaran"
 
     set_status_bayar(db, id_trx, status, metode, user)
-
     if status == "Lunas":
         print("\n[+] Pembayaran LUNAS (" + metode + ").")
         if kembalian > 0:
             print("    Kembalian : " + format_rupiah(kembalian))
-        cetak = input("\nCetak struk sekarang? [y/n] : ").strip()
-        if cetak == "y" or cetak == "Y":
+        if konfirmasi("Cetak struk sekarang?"):
             struk.tampil_dan_simpan(db, id_trx)
             return
     else:
@@ -350,42 +299,34 @@ def ubah_status_pembayaran(db, user):
     bersihkan_layar()
     judul("UBAH STATUS PEMBAYARAN")
     print(" (transaksi yang sudah Lunas tidak dapat diubah lagi)")
-    daftar = daftar_transaksi(db, True)
-    if len(daftar) == 0:
+    pilihan = pilihan_transaksi(db, ["Belum Dibayar", "Menunggu Pembayaran"])
+    if len(pilihan) == 0:
         print(" Tidak ada tagihan yang belum lunas.")
         jeda()
         return
 
-    tampil_tabel_transaksi(db, daftar)
-    id_trx = input("ID transaksi : ").strip()
-    if id_trx not in daftar:
-        print("\n[!] ID tidak ada dalam daftar tagihan belum lunas.")
-        jeda()
+    id_trx = pilih_data("Pilih tagihan", pilihan)
+    if id_trx == None:
         return
 
-    print("\nStatus saat ini : " + db["transaksi"][id_trx]["status_bayar"])
-    tabel = buat_tabel(["No", "Status Pembayaran"], ["Status Pembayaran"])
-    for kunci in STATUS_BAYAR:
-        tabel.add_row([kunci, STATUS_BAYAR[kunci]])
-    print(tabel)
-    pilih = input("Status baru [1-3] : ").strip()
-    if pilih not in STATUS_BAYAR:
-        print("\n[!] Pilihan status tidak tersedia.")
-        jeda()
+    pilihan_status = []
+    for status in STATUS_BAYAR:
+        pilihan_status.append((status, status))
+    status_baru = pilih_data("Pilih status baru (saat ini: " + db["transaksi"][id_trx]["status_bayar"] + ")", pilihan_status)
+    if status_baru == None:
         return
-
-    status_baru = STATUS_BAYAR[pilih]
     if status_baru == db["transaksi"][id_trx]["status_bayar"]:
         print("\n[*] Status tidak berubah.")
         jeda()
         return
 
     metode = ""
-    if status_baru != "Belum Dibayar":                   
-        metode = pilih_metode()
+    if status_baru != "Belum Dibayar":
+        pilihan_metode = []
+        for nama_metode in METODE_BAYAR:
+            pilihan_metode.append((nama_metode, nama_metode))
+        metode = pilih_data("Pilih metode pembayaran", pilihan_metode)
         if metode == None:
-            print("\n[!] Metode pembayaran tidak tersedia, perubahan dibatalkan.")
-            jeda()
             return
 
     set_status_bayar(db, id_trx, status_baru, metode, user)
@@ -394,38 +335,35 @@ def ubah_status_pembayaran(db, user):
 
 
 def menu_pembayaran(db, user):
+    daftar_menu = [
+        "Lihat Harga Jasa Dokter & Obat",
+        "Buat Tagihan (Jasa + Obat Resep)",
+        "Tambah Obat Resep ke Tagihan",
+        "Lihat Daftar Tagihan",
+        "Proses Pembayaran",
+        "Ubah Status Pembayaran",
+        "Cetak Struk Pembayaran",
+        "Kembali ke Dashboard"
+    ]
     jalan = True
     while jalan:
         bersihkan_layar()
         judul("KELOLA PEMBAYARAN")
-        tabel = buat_tabel(["No", "Menu"], ["Menu"])
-        tabel.add_row([1, "Lihat harga jasa dokter & harga obat"])
-        tabel.add_row([2, "Buat tagihan (jasa dokter + obat resep + total)"])
-        tabel.add_row([3, "Tambah obat resep ke tagihan"])
-        tabel.add_row([4, "Lihat daftar tagihan & riwayat transaksi"])
-        tabel.add_row([5, "Proses pembayaran"])
-        tabel.add_row([6, "Ubah status pembayaran"])
-        tabel.add_row([7, "Cetak struk pembayaran"])
-        tabel.add_row([0, "Kembali ke dashboard"])
-        print(tabel)
-        pilihan = input("Pilih menu [0-7] : ").strip()
+        pilihan = pilih_menu("Pilih menu (panah atas/bawah, Enter untuk memilih)", daftar_menu)
 
-        if pilihan == "1":
+        if pilihan == "Lihat Harga Jasa Dokter & Obat":
             lihat_harga(db)
-        elif pilihan == "2":
+        elif pilihan == "Buat Tagihan (Jasa + Obat Resep)":
             buat_tagihan(db, user)
-        elif pilihan == "3":
+        elif pilihan == "Tambah Obat Resep ke Tagihan":
             tambah_obat_ke_tagihan(db, user)
-        elif pilihan == "4":
+        elif pilihan == "Lihat Daftar Tagihan":
             lihat_daftar_tagihan(db)
-        elif pilihan == "5":
+        elif pilihan == "Proses Pembayaran":
             proses_pembayaran(db, user)
-        elif pilihan == "6":
+        elif pilihan == "Ubah Status Pembayaran":
             ubah_status_pembayaran(db, user)
-        elif pilihan == "7":
+        elif pilihan == "Cetak Struk Pembayaran":
             struk.menu_struk(db, user)
-        elif pilihan == "0":
+        elif pilihan == "Kembali ke Dashboard":
             jalan = False
-        else:
-            print("\n[!] Pilihan tidak tersedia, pilih 0 sampai 7.")
-            jeda()

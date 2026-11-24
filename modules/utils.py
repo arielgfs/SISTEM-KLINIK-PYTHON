@@ -1,24 +1,91 @@
 import os
+import sys
+from datetime import datetime
 
-import inquirer
 from prettytable import PrettyTable
+
+try:
+    import inquirer
+except ImportError:
+    inquirer = None
 
 
 def bersihkan_layar():
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def jeda():
-    input("\nTekan Enter untuk melanjutkan...")
+def jeda(pesan="Tekan Enter untuk melanjutkan..."):
+    input("\n" + pesan)
+
+
+def judul(teks):
+    print("\n" + "=" * 60)
+    print(" " + teks)
+    print("=" * 60)
+
+
+def buat_tabel(kolom, kiri=()):
+    """Membuat tabel kosong; kolom yang disebut di 'kiri' rata kiri."""
+    tabel = PrettyTable()
+    tabel.field_names = list(kolom)
+
+    for nama_kolom in kiri:
+        tabel.align[nama_kolom] = "l"
+
+    return tabel
+
+
+def tampilkan_tabel(judul_tabel, kolom, baris, kiri=(), kanan=()):
+    tabel = buat_tabel(kolom, kiri)
+    tabel.title = judul_tabel
+
+    for nama_kolom in kanan:
+        tabel.align[nama_kolom] = "r"
+
+    for isi in baris:
+        tabel.add_row(list(isi))
+
+    print()
+    print(tabel)
 
 
 def format_rupiah(angka):
     return "Rp. " + format(angka, ",").replace(",", ".")
 
 
-def buat_id(awalan, kumpulan):
-    urutan = [int(kode[len(awalan):]) for kode in kumpulan]
-    return f"{awalan}{max(urutan, default=0) + 1:02d}"
+def id_berikutnya(kumpulan):
+    """ID numerik berikutnya sebagai teks: {"1":..,"2":..} -> "3"."""
+    urutan = [int(kode) for kode in kumpulan if str(kode).isdigit()]
+    return str(max(urutan, default=0) + 1)
+
+
+def sekarang():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_tanggal(teks):
+    """'2026-11-12' -> date, atau None bila formatnya salah."""
+    try:
+        return datetime.strptime(teks, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def nama_dari(tabel, kode):
+    """Nama dari tabel data (dokter/pasien) berdasarkan ID; aman bila data sudah dihapus."""
+    if kode in tabel:
+        return tabel[kode]["nama"]
+    return "(data dihapus)"
+
+
+def ke_angka(teks):
+    """Mengubah teks menjadi bilangan bulat, None bila bukan angka."""
+    teks = teks.strip()
+
+    if teks.isdigit():
+        return int(teks)
+
+    return None
 
 
 def input_teks(pesan, lama=None):
@@ -58,21 +125,33 @@ def konfirmasi(pesan):
     return jawaban in {"y", "ya"}
 
 
-def pilih_menu(judul, daftar_menu):
-    pertanyaan = [
-        inquirer.List(
-            "menu",
-            message=judul,
-            choices=daftar_menu
-        )
-    ]
+def pilih_menu(judul_menu, daftar_menu):
+    """Menu pilihan; mengembalikan nomor pilihan (mulai dari 1).
 
-    jawaban = inquirer.prompt(pertanyaan)
+    Memakai panah atas/bawah (inquirer) bila tersedia di terminal interaktif,
+    selain itu memakai pilihan nomor biasa.
+    """
+    if inquirer is not None and sys.stdin.isatty():
+        jawaban = inquirer.prompt([
+            inquirer.List("menu", message=judul_menu, choices=daftar_menu)
+        ])
 
-    if jawaban is None:
-        return len(daftar_menu)
+        if jawaban is None:
+            return len(daftar_menu)
 
-    return daftar_menu.index(jawaban["menu"]) + 1
+        return daftar_menu.index(jawaban["menu"]) + 1
+
+    print("\n" + judul_menu)
+    for nomor, nama in enumerate(daftar_menu, 1):
+        print(f"  {nomor}. {nama}")
+
+    while True:
+        nomor = ke_angka(input("Pilih nomor: "))
+
+        if nomor is not None and 1 <= nomor <= len(daftar_menu):
+            return nomor
+
+        print("Pilihan tidak valid")
 
 
 def pilih_kunci(kumpulan, pesan):
@@ -88,27 +167,3 @@ def pilih_kunci(kumpulan, pesan):
         return None
 
     return daftar_kunci[nomor - 1]
-
-
-def tampilkan_tabel(judul, kolom, baris, kiri=(), kanan=()):
-    tabel = PrettyTable()
-    tabel.title = judul
-    tabel.field_names = list(kolom)
-
-    for nama_kolom in kiri:
-        tabel.align[nama_kolom] = "l"
-
-    for nama_kolom in kanan:
-        tabel.align[nama_kolom] = "r"
-
-    for isi in baris:
-        tabel.add_row(list(isi))
-
-    print()
-    print(tabel)
-
-def cari(nama_tabel, id_cari):
-    for item in db[nama_tabel]:
-        if item["id"] == id_cari:
-            return item
-    return {}

@@ -1,0 +1,27 @@
+{
+    "1": {
+        "nama": "Stetoskop",
+        "jumlah": 8,
+        "kondisi": "Baik"
+    },
+    "2": {
+        "nama": "Tensimeter Digital",
+        "jumlah": 5,
+        "kondisi": "Baik"
+    },
+    "3": {
+        "nama": "Kursi Dental",
+        "jumlah": 2,
+        "kondisi": "Perawatan"
+    },
+    "4": {
+        "nama": "Termometer Infrared",
+        "jumlah": 6,
+        "kondisi": "Baik"
+    },
+    "5": {
+        "nama": "Autoclave",
+        "jumlah": 1,
+        "kondisi": "Rusak"
+    }
+}
