@@ -6,5 +6,13 @@
         "detail": "2026-11-10 09:00 dengan dr. Andi",
         "oleh": "resepsionis",
         "waktu": "2026-11-08 10:00:00"
+    },
+    "2": {
+        "id_reservasi": "3",
+        "id_pasien": "1",
+        "aksi": "BUAT",
+        "detail": "2026-11-26 09:00 dengan dr. Sinta, Sp.A",
+        "oleh": "ariel",
+        "waktu": "2026-11-25 19:20:31"
     }
 }

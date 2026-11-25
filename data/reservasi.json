@@ -14,5 +14,13 @@
         "jam": "08:00",
         "status": "Menunggu",
         "dibuat_oleh": "resepsionis"
+    },
+    "3": {
+        "id_pasien": "1",
+        "id_dokter": "2",
+        "tanggal": "2026-11-26",
+        "jam": "09:00",
+        "status": "Menunggu",
+        "dibuat_oleh": "ariel"
     }
 }
