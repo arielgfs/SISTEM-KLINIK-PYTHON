@@ -10,7 +10,7 @@ def jalankan_menu_role(user):
     role = user["role"]
 
     if role == "admin":
-        return menu_admin()
+        return menu_admin(user["username"])
 
     if role == "resepsionis":
         return menu_resepsionis(user["username"])
@@ -25,28 +25,27 @@ def jalankan_menu_role(user):
 
 def main():
     daftar_menu = [
+        "Register Pasien",
         "Login",
-        "Registrasi Pasien Baru",
-        "Keluar dari Program"
+        "Keluar Program"
     ]
 
     while True:
         bersihkan_layar()
-        pilihan = pilih_menu("SELAMAT DATANG DI SISTEM KLINIK", daftar_menu)
+        pilihan = pilih_menu("MENU AWAL", daftar_menu)
 
         if pilihan == 1:
+            proses_register()
+
+        elif pilihan == 2:
             user = proses_login()
 
             if user is None:
-                print("\nKesempatan login habis")
+                print("\nAkses ditolak. Kesempatan login habis")
                 jeda("Tekan Enter untuk kembali...")
                 continue
 
-            if jalankan_menu_role(user) == "keluar":
-                return
-
-        elif pilihan == 2:
-            proses_register()
+            jalankan_menu_role(user)
 
         elif pilihan == 3:
             bersihkan_layar()

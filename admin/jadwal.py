@@ -1,188 +1,170 @@
 from datetime import date, datetime
 
 from modules import database
-from modules.reservasi import HARI
+from modules.reservasi import HARI, tampilkan_jadwal
 from modules.utils import (
-    bersihkan_layar, jeda, id_berikutnya, konfirmasi,
-    pilih_menu, pilih_kunci, tampilkan_tabel
+    bersihkan_layar, jeda, id_berikutnya, jam_ke_menit, ke_angka, konfirmasi,
+    menit_ke_jam, pilih_menu, pilih_kunci
 )
 from admin.dokter import tampilkan_dokter
-
-
-def buat_slot(shift):
-    """Shift ("08:00", "12:00") -> slot per jam ["08:00", "09:00", "10:00", "11:00"]."""
-    jam_mulai = int(shift[0][:2])
-    jam_selesai = int(shift[1][:2])
-    return [f"{jam:02d}:00" for jam in range(jam_mulai, jam_selesai)]
-
-
-def format_jam(slot):
-    return slot[0] + " - " + slot[-1]
 
 
 def hitung_terisi(kode_jadwal):
     """Jumlah reservasi aktif (hari ini dan seterusnya) yang memakai jadwal ini."""
     jadwal = database.db["jadwal"][kode_jadwal]
     hari_ini = str(date.today())
-    jumlah = 0
 
-    for isi in database.db["reservasi"].values():
-        if (
-            isi["id_dokter"] == jadwal["id_dokter"]
-            and isi["status"] in database.STATUS_AKTIF
-            and isi["tanggal"] >= hari_ini
-            and isi["jam"] in jadwal["jam"]
-            and HARI[datetime.strptime(isi["tanggal"], "%Y-%m-%d").weekday()] == jadwal["hari"]
-        ):
-            jumlah += 1
-
-    return jumlah
+    return sum(
+        1 for isi in database.db["reservasi"].values()
+        if isi["id_dokter"] == jadwal["id_dokter"]
+        and isi["status"] in database.STATUS_AKTIF
+        and isi["tanggal"] >= hari_ini
+        and HARI[datetime.strptime(isi["tanggal"], "%Y-%m-%d").weekday()] == jadwal["hari"]
+    )
 
 
-def cek_bentrok(kode_dokter, hari, slot, abaikan=None):
+def cek_bentrok(kode_dokter, hari, mulai, selesai, abaikan=None):
+    """True bila rentang jam bertumpuk dengan jadwal lain dokter yang sama di hari yang sama."""
     return any(
         kode != abaikan
         and isi["id_dokter"] == kode_dokter
         and isi["hari"] == hari
-        and set(isi["jam"]) & set(slot)
+        and mulai < jam_ke_menit(isi["jam_selesai"])
+        and jam_ke_menit(isi["jam_mulai"]) < selesai
         for kode, isi in database.db["jadwal"].items()
     )
 
 
-def pilih_hari():
-    daftar_hari = list(database.DAFTAR_HARI)
-    return daftar_hari[pilih_menu("Pilih hari praktik", daftar_hari) - 1]
+def baca_jadwal():
+    """Meminta hari, jam mulai, jam selesai, kuota. Mengembalikan dict, atau None bila tidak valid."""
+    hari = pilih_menu("Pilih hari praktik", list(database.DAFTAR_HARI))
+    hari = database.DAFTAR_HARI[hari - 1]
+    mulai = jam_ke_menit(input("Jam mulai (HH:MM): "))
+    selesai = jam_ke_menit(input("Jam selesai (HH:MM): "))
+    kuota = ke_angka(input("Kuota pasien per hari: "))
+
+    if mulai is None or selesai is None or kuota is None or kuota < 1:
+        print("Data kosong atau tidak valid")
+        return None
+
+    if selesai - mulai < 60:
+        print("Data tidak valid: jam selesai minimal 1 jam setelah jam mulai")
+        return None
+
+    return {"hari": hari, "mulai": mulai, "selesai": selesai, "kuota": kuota}
 
 
-def pilih_jam():
-    daftar_shift = [shift[0] + " - " + shift[1] for shift in database.JAM_PRAKTIK]
-    shift = database.JAM_PRAKTIK[pilih_menu("Pilih jam praktik", daftar_shift) - 1]
-    return buat_slot(shift)
-
-
-def tampilkan_jadwal():
-    baris = [
-        (
-            nomor,
-            kode,
-            database.db["dokter"].get(data["id_dokter"], {"nama": "(data dihapus)"})["nama"],
-            data["hari"],
-            format_jam(data["jam"]),
-            len(data["jam"]),
-            hitung_terisi(kode)
-        )
-        for nomor, (kode, data) in enumerate(database.db["jadwal"].items(), 1)
-    ]
-
-    tampilkan_tabel(
-        "JADWAL DOKTER",
-        ("No", "ID", "Dokter", "Hari", "Jam Praktik", "Slot/Hari", "Reservasi Aktif"),
-        baris,
-        kiri=("Dokter",)
-    )
+def tampilkan_jadwal_admin():
+    """Tampilkan_Jadwal: mengembalikan False bila data kosong."""
+    return tampilkan_jadwal(database.db, "JADWAL PRAKTIK DOKTER")
 
 
 def tambah_jadwal():
-    if len(database.db["dokter"]) == 0:
-        print("Data dokter masih kosong, tambahkan dokter terlebih dahulu")
+    if not tampilkan_dokter():
         return
 
-    tampilkan_dokter()
-    kode_dokter = pilih_kunci(database.db["dokter"], "Pilih nomor dokter: ")
+    kode_dokter = pilih_kunci(database.db["dokter"], "Nomor dokter: ")
 
     if kode_dokter is None:
         return
 
-    hari = pilih_hari()
-    slot = pilih_jam()
+    data = baca_jadwal()
 
-    if cek_bentrok(kode_dokter, hari, slot):
-        print("Jadwal dokter pada hari dan jam tersebut sudah ada")
+    if data is None:
+        return
+
+    if cek_bentrok(kode_dokter, data["hari"], data["mulai"], data["selesai"]):
+        print("Jadwal dokter pada hari dan jam tersebut bentrok dengan jadwal lain")
         return
 
     kode = id_berikutnya(database.db["jadwal"])
-
     database.db["jadwal"][kode] = {
         "id_dokter": kode_dokter,
-        "hari": hari,
-        "jam": slot
+        "hari": data["hari"],
+        "jam_mulai": menit_ke_jam(data["mulai"]),
+        "jam_selesai": menit_ke_jam(data["selesai"]),
+        "kuota": data["kuota"]
     }
     database.simpan(database.db, ["jadwal"])
+    print("Jadwal praktik berhasil ditambah dengan ID", kode)
 
-    print("Jadwal berhasil ditambahkan dengan ID", kode)
 
+def ubah_jadwal():
+    if not tampilkan_jadwal_admin():
+        return
 
-def edit_jadwal():
-    kode = pilih_kunci(database.db["jadwal"], "Masukkan nomor jadwal yang ingin diedit: ")
+    kode = pilih_kunci(database.db["jadwal"], "Nomor jadwal yang ingin diubah: ")
 
     if kode is None:
         return
 
-    data = database.db["jadwal"][kode]
-    print("Dokter pada jadwal:", database.db["dokter"].get(data["id_dokter"], {"nama": "(data dihapus)"})["nama"])
-
-    terisi = hitung_terisi(kode)
-
-    if terisi > 0:
-        print("Jadwal tidak bisa diubah karena masih ada reservasi aktif:", terisi)
+    if hitung_terisi(kode) > 0:
+        print("Jadwal tidak bisa diubah karena masih ada reservasi aktif:", hitung_terisi(kode))
         return
 
-    hari = pilih_hari()
-    slot = pilih_jam()
+    data = baca_jadwal()
 
-    if cek_bentrok(data["id_dokter"], hari, slot, kode):
-        print("Jadwal dokter pada hari dan jam tersebut sudah ada")
+    if data is None:
         return
 
-    data["hari"] = hari
-    data["jam"] = slot
+    jadwal = database.db["jadwal"][kode]
+
+    if cek_bentrok(jadwal["id_dokter"], data["hari"], data["mulai"], data["selesai"], kode):
+        print("Jadwal dokter pada hari dan jam tersebut bentrok dengan jadwal lain")
+        return
+
+    jadwal["hari"] = data["hari"]
+    jadwal["jam_mulai"] = menit_ke_jam(data["mulai"])
+    jadwal["jam_selesai"] = menit_ke_jam(data["selesai"])
+    jadwal["kuota"] = data["kuota"]
     database.simpan(database.db, ["jadwal"])
-
-    print("Jadwal berhasil diedit")
+    print("Data jadwal berhasil diubah")
 
 
 def hapus_jadwal():
-    kode = pilih_kunci(database.db["jadwal"], "Masukkan nomor jadwal yang ingin dihapus: ")
+    if not tampilkan_jadwal_admin():
+        return
+
+    kode = pilih_kunci(database.db["jadwal"], "Nomor jadwal yang ingin dihapus: ")
 
     if kode is None:
         return
 
-    terisi = hitung_terisi(kode)
-
-    if terisi > 0:
-        print("Jadwal tidak bisa dihapus karena masih ada reservasi aktif:", terisi)
+    if hitung_terisi(kode) > 0:
+        print("Jadwal tidak bisa dihapus karena masih ada reservasi aktif:", hitung_terisi(kode))
         return
 
-    if konfirmasi("Yakin menghapus jadwal " + kode):
+    if konfirmasi("Hapus jadwal " + kode):
         del database.db["jadwal"][kode]
         database.simpan(database.db, ["jadwal"])
-        print("Jadwal berhasil dihapus")
+        print("Data jadwal berhasil dihapus")
     else:
         print("Penghapusan dibatalkan")
 
 
 def menu_jadwal():
     daftar_menu = [
-        "Tambah Jadwal",
-        "Edit Jadwal",
-        "Hapus Jadwal",
-        "Kembali"
+        "Tambah Jadwal Praktik",
+        "Tampilkan Jadwal Praktik",
+        "Ubah Jadwal Praktik",
+        "Hapus Jadwal Praktik",
+        "Kembali ke Menu Admin"
     ]
 
     while True:
         bersihkan_layar()
-        tampilkan_jadwal()
+        pilihan = pilih_menu("MENU KELOLA JADWAL", daftar_menu)
 
-        pilihan = pilih_menu("KELOLA JADWAL DOKTER", daftar_menu)
-
-        if pilihan == 4:
+        if pilihan == 5:
             return
 
         if pilihan == 1:
             tambah_jadwal()
         elif pilihan == 2:
-            edit_jadwal()
+            tampilkan_jadwal_admin()
         elif pilihan == 3:
+            ubah_jadwal()
+        elif pilihan == 4:
             hapus_jadwal()
 
         jeda()

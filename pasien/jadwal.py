@@ -1,56 +1,35 @@
-from modules.reservasi import slot_tersedia
-from modules.utils import nama_dari, parse_tanggal, tampilkan_tabel
-from pasien.dokter import lihat_dokter
+from datetime import date, timedelta
+
+from modules.reservasi import HARI, sisa_kuota
+from modules.utils import nama_dari, tampilkan_tabel
 
 
-def lihat_jadwal(db):
+def lihat_jadwal_slot(db):
+    """Lihat_Jadwal_Slot: jadwal praktik + sisa slot pada tanggal terdekat tiap jadwal."""
+    if len(db["jadwal"]) == 0:
+        print("\nData belum tersedia")
+        return
+
     baris = []
-
     for kode, data in db["jadwal"].items():
+        tanggal = date.today()
+        while HARI[tanggal.weekday()] != data["hari"]:
+            tanggal += timedelta(days=1)
+
         dokter = db["dokter"].get(data["id_dokter"])
         baris.append((
             kode,
             nama_dari(db["dokter"], data["id_dokter"]),
             dokter["spesialisasi"] if dokter else "-",
             data["hari"],
-            ", ".join(data["jam"])
+            data["jam_mulai"] + " - " + data["jam_selesai"],
+            str(tanggal),
+            sisa_kuota(db, data["id_dokter"], tanggal)
         ))
 
-    if len(baris) == 0:
-        print("\nBelum ada jadwal praktik")
-        return
-
     tampilkan_tabel(
-        "JADWAL PRAKTIK DOKTER",
-        ("ID", "Dokter", "Spesialisasi", "Hari", "Jam Praktik"),
+        "JADWAL PRAKTIK DAN SLOT TERSEDIA",
+        ("ID", "Dokter", "Spesialisasi", "Hari", "Jam Praktik", "Tanggal Terdekat", "Sisa Slot"),
         baris,
-        kiri=("Dokter", "Spesialisasi", "Jam Praktik")
-    )
-
-
-def lihat_slot_tersedia(db):
-    lihat_dokter(db)
-    id_dokter = input("ID dokter: ").strip()
-
-    if id_dokter not in db["dokter"]:
-        print("Dokter dengan ID", id_dokter, "tidak ditemukan")
-        return
-
-    tanggal = parse_tanggal(input("Tanggal (YYYY-MM-DD): ").strip())
-
-    if tanggal is None:
-        print("Format tanggal salah. Contoh: 2026-11-12")
-        return
-
-    tersedia, hari = slot_tersedia(db, id_dokter, tanggal)
-    print("\n" + nama_dari(db["dokter"], id_dokter) + " - " + hari + ", " + str(tanggal))
-
-    if len(tersedia) == 0:
-        print("Tidak ada slot tersedia (dokter tidak praktik / jadwal penuh)")
-        return
-
-    tampilkan_tabel(
-        "SLOT TERSEDIA",
-        ("No", "Jam"),
-        [(nomor, jam) for nomor, jam in enumerate(tersedia, 1)]
+        kiri=("Dokter", "Spesialisasi")
     )

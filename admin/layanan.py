@@ -1,107 +1,117 @@
 from modules import database
 from modules.utils import (
-    bersihkan_layar, jeda, format_rupiah, id_berikutnya, input_teks,
-    input_angka, konfirmasi, pilih_menu, pilih_kunci, tampilkan_tabel
+    bersihkan_layar, jeda, id_berikutnya, konfirmasi,
+    pilih_menu, pilih_kunci, tampilkan_tabel
 )
 
 
 def tampilkan_layanan():
+    """Tampilkan_Layanan: mengembalikan False bila data kosong."""
+    if len(database.db["layanan"]) == 0:
+        print("\nData belum tersedia")
+        return False
+
     baris = [
-        (nomor, kode, data["nama"], format_rupiah(data["harga"]), data["keterangan"])
+        (nomor, kode, data["nama"], data["keterangan"])
         for nomor, (kode, data) in enumerate(database.db["layanan"].items(), 1)
     ]
 
     tampilkan_tabel(
         "DAFTAR LAYANAN",
-        ("No", "ID", "Nama Layanan", "Harga", "Keterangan"),
+        ("No", "ID", "Nama Layanan", "Deskripsi"),
         baris,
-        kiri=("Nama Layanan", "Keterangan"),
-        kanan=("Harga",)
+        kiri=("Nama Layanan", "Deskripsi")
     )
+    return True
 
 
 def tambah_layanan():
-    nama = input_teks("Masukkan nama layanan: ")
-    nama_terdaftar = {data["nama"].lower() for data in database.db["layanan"].values()}
+    nama = input("Nama layanan: ").strip()
+    deskripsi = input("Deskripsi: ").strip()
 
-    if nama.lower() in nama_terdaftar:
+    if nama == "" or deskripsi == "":
+        print("Data kosong atau tidak valid")
+        return
+
+    if nama.lower() in {data["nama"].lower() for data in database.db["layanan"].values()}:
         print("Nama layanan sudah terdaftar")
         return
 
-    harga = input_angka("Masukkan harga layanan: ", 0)
-    keterangan = input_teks("Masukkan keterangan layanan: ")
     kode = id_berikutnya(database.db["layanan"])
-
-    database.db["layanan"][kode] = {"nama": nama, "harga": harga, "keterangan": keterangan}
+    database.db["layanan"][kode] = {"nama": nama, "keterangan": deskripsi}
     database.simpan(database.db, ["layanan"])
+    print("Layanan berhasil ditambah dengan ID", kode)
 
-    print("Layanan berhasil ditambahkan dengan ID", kode)
 
+def ubah_layanan():
+    if not tampilkan_layanan():
+        return
 
-def edit_layanan():
-    kode = pilih_kunci(database.db["layanan"], "Masukkan nomor layanan yang ingin diedit: ")
+    kode = pilih_kunci(database.db["layanan"], "Nomor layanan yang ingin diubah: ")
 
     if kode is None:
         return
 
-    data = database.db["layanan"][kode]
-    print("Kosongkan input jika tidak ingin mengubah data")
+    nama = input("Nama layanan baru: ").strip()
+    deskripsi = input("Deskripsi baru: ").strip()
 
-    nama = input_teks("Masukkan nama layanan baru: ", data["nama"])
+    if nama == "" or deskripsi == "":
+        print("Data kosong atau tidak valid")
+        return
+
     nama_lain = {
-        isi["nama"].lower()
-        for kode_lain, isi in database.db["layanan"].items()
-        if kode_lain != kode
+        isi["nama"].lower() for kode_lain, isi in database.db["layanan"].items() if kode_lain != kode
     }
 
     if nama.lower() in nama_lain:
         print("Nama layanan sudah terdaftar")
         return
 
-    data["nama"] = nama
-    data["harga"] = input_angka("Masukkan harga layanan baru: ", 0, data["harga"])
-    data["keterangan"] = input_teks("Masukkan keterangan baru: ", data["keterangan"])
+    database.db["layanan"][kode] = {"nama": nama, "keterangan": deskripsi}
     database.simpan(database.db, ["layanan"])
-
-    print("Layanan berhasil diedit")
+    print("Data layanan berhasil diubah")
 
 
 def hapus_layanan():
-    kode = pilih_kunci(database.db["layanan"], "Masukkan nomor layanan yang ingin dihapus: ")
+    if not tampilkan_layanan():
+        return
+
+    kode = pilih_kunci(database.db["layanan"], "Nomor layanan yang ingin dihapus: ")
 
     if kode is None:
         return
 
-    if konfirmasi("Yakin menghapus " + database.db["layanan"][kode]["nama"]):
+    if konfirmasi("Hapus " + database.db["layanan"][kode]["nama"]):
         del database.db["layanan"][kode]
         database.simpan(database.db, ["layanan"])
-        print("Layanan berhasil dihapus")
+        print("Data layanan berhasil dihapus")
     else:
         print("Penghapusan dibatalkan")
 
 
 def menu_layanan():
     daftar_menu = [
-        "Tambah Layanan",
-        "Edit Layanan",
-        "Hapus Layanan",
-        "Kembali"
+        "Tambah Data Layanan",
+        "Tampilkan Data Layanan",
+        "Ubah Data Layanan",
+        "Hapus Data Layanan",
+        "Kembali ke Menu Admin"
     ]
 
     while True:
         bersihkan_layar()
-        tampilkan_layanan()
+        pilihan = pilih_menu("MENU KELOLA LAYANAN", daftar_menu)
 
-        pilihan = pilih_menu("KELOLA LAYANAN", daftar_menu)
-
-        if pilihan == 4:
+        if pilihan == 5:
             return
 
         if pilihan == 1:
             tambah_layanan()
         elif pilihan == 2:
-            edit_layanan()
+            tampilkan_layanan()
         elif pilihan == 3:
+            ubah_layanan()
+        elif pilihan == 4:
             hapus_layanan()
 
         jeda()

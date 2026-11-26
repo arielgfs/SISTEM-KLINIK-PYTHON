@@ -1,6 +1,6 @@
 import os
-from modules.utils import bersihkan_layar, jeda, judul, format_rupiah, nama_dari
-from resepsionis.pasien import pilih_data, konfirmasi
+
+from modules.utils import bersihkan_layar, buat_tabel, format_rupiah, jeda, konfirmasi, nama_dari
 
 NAMA_KLINIK = "KLINIK SEHAT"
 FOLDER_STRUK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "struk")
@@ -25,6 +25,24 @@ def baris(kiri, kanan):
     if spasi < 1:
         spasi = 1
     return kiri + " " * spasi + kanan
+
+
+def tampil_rincian(db, id_trx):
+    """Rincian tagihan: biaya jasa dokter + obat + total + status."""
+    data = db["transaksi"][id_trx]
+    print(" No. Transaksi : " + nomor_transaksi(id_trx))
+    print(" Pasien        : " + nama_dari(db["pasien"], data["id_pasien"]))
+    print(" Dokter        : " + nama_dari(db["dokter"], data["id_dokter"]))
+    tabel = buat_tabel(["No", "Keterangan", "Jumlah", "Harga Satuan", "Subtotal"], ["Keterangan"])
+    tabel.add_row([1, "Jasa konsultasi dokter", 1, format_rupiah(data["biaya_jasa"]), format_rupiah(data["biaya_jasa"])])
+    nomor = 1
+    for item in data["obat"]:
+        nomor = nomor + 1
+        tabel.add_row([nomor, item["nama"], str(item["jumlah"]) + " " + item["satuan"],
+                       format_rupiah(item["harga_satuan"]), format_rupiah(item["subtotal"])])
+    print(tabel)
+    print(" TOTAL PEMBAYARAN : " + format_rupiah(data["total"]))
+    print(" Status pembayaran: " + data["status_bayar"])
 
 
 def buat_teks_struk(db, id_trx):
@@ -66,34 +84,24 @@ def buat_teks_struk(db, id_trx):
     return "\n".join(teks)
 
 
+def simpan_struk(db, id_trx):
+    """Menyimpan struk ke folder struk/ sebagai .txt. Mengembalikan jalur file."""
+    os.makedirs(FOLDER_STRUK, exist_ok=True)
+    jalur = os.path.join(FOLDER_STRUK, nomor_transaksi(id_trx) + ".txt")
+    with open(jalur, "w", encoding="utf-8") as berkas:
+        berkas.write(buat_teks_struk(db, id_trx) + "\n")
+    return jalur
+
+
 def tampil_dan_simpan(db, id_trx):
-    bersihkan_layar()
-    teks = buat_teks_struk(db, id_trx)
-    print(teks)
+    print(buat_teks_struk(db, id_trx))
     if konfirmasi("Simpan struk ke file .txt?"):
-        os.makedirs(FOLDER_STRUK, exist_ok=True)
-        jalur = os.path.join(FOLDER_STRUK, nomor_transaksi(id_trx) + ".txt")
-        with open(jalur, "w", encoding="utf-8") as berkas:
-            berkas.write(teks + "\n")
-        print("[+] Struk disimpan di : " + jalur)
-    jeda()
+        print("Struk disimpan di : " + simpan_struk(db, id_trx))
 
 
-def menu_struk(db, user):
-    bersihkan_layar()
-    judul("CETAK STRUK PEMBAYARAN")
-
-    pilihan = []
-    for id_trx in db["transaksi"]:
-        data = db["transaksi"][id_trx]
-        if data["status_bayar"] == "Lunas":
-            pilihan.append((nomor_transaksi(id_trx) + " | " + nama_dari(db["pasien"], data["id_pasien"])
-                            + " | " + format_rupiah(data["total"]), id_trx))
-    if len(pilihan) == 0:
-        print(" Belum ada transaksi berstatus Lunas.")
-        jeda()
-        return
-
-    id_trx = pilih_data("Pilih transaksi yang dicetak struknya", pilihan)
-    if id_trx != None:
-        tampil_dan_simpan(db, id_trx)
+def cetak_struk(db, id_trx_input):
+    """Aturan umum cetak/unduh: transaksi harus ada dan Lunas. Mengembalikan id atau None."""
+    if id_trx_input not in db["transaksi"] or db["transaksi"][id_trx_input]["status_bayar"] != "Lunas":
+        print("Transaksi tidak ada atau belum lunas")
+        return None
+    return id_trx_input

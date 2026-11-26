@@ -125,6 +125,30 @@ def konfirmasi(pesan):
     return jawaban in {"y", "ya"}
 
 
+def pilih_id(kumpulan, pesan):
+    """Meminta ID/nomor; mengembalikan kunci bila ada di kumpulan, selain itu None."""
+    kode = input(pesan).strip()
+
+    if kode in kumpulan:
+        return kode
+
+    return None
+
+
+def jam_ke_menit(teks):
+    """'08:30' -> 510, atau None bila formatnya salah."""
+    try:
+        waktu = datetime.strptime(teks.strip(), "%H:%M")
+    except ValueError:
+        return None
+
+    return waktu.hour * 60 + waktu.minute
+
+
+def menit_ke_jam(menit):
+    return f"{menit // 60:02d}:{menit % 60:02d}"
+
+
 def pilih_menu(judul_menu, daftar_menu):
     """Menu pilihan; mengembalikan nomor pilihan (mulai dari 1).
 
@@ -155,15 +179,15 @@ def pilih_menu(judul_menu, daftar_menu):
 
 
 def pilih_kunci(kumpulan, pesan):
+    """Meminta nomor urut (mulai 1) dari daftar yang sedang ditampilkan; mengembalikan kunci, atau None bila tidak valid."""
     if len(kumpulan) == 0:
-        print("Data masih kosong")
+        print("Data belum tersedia")
         return None
 
-    nomor = input_angka(pesan, 1)
-    daftar_kunci = list(kumpulan)
+    nomor = ke_angka(input(pesan))
 
-    if nomor > len(daftar_kunci):
+    if nomor is None or nomor < 1 or nomor > len(kumpulan):
         print("Nomor tidak valid")
         return None
 
-    return daftar_kunci[nomor - 1]
+    return list(kumpulan)[nomor - 1]

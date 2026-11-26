@@ -1,8 +1,9 @@
-from datetime import date
-
-from modules.reservasi import batalkan_reservasi, buat_reservasi, slot_tersedia, ubah_jadwal
-from modules.utils import konfirmasi, ke_angka, nama_dari, parse_tanggal, tampilkan_tabel
+from modules.reservasi import (
+    batalkan_reservasi, buat_reservasi, pilih_slot, tampilkan_reservasi, ubah_jadwal
+)
+from modules.utils import konfirmasi, pilih_id, pilih_menu
 from pasien.dokter import lihat_dokter
+from pasien.jadwal import lihat_jadwal_slot
 
 
 def reservasi_pasien(db, id_pasien, status_boleh=None):
@@ -13,76 +14,17 @@ def reservasi_pasien(db, id_pasien, status_boleh=None):
     ]
 
 
-def tampilkan_reservasi(db, daftar, judul_tabel="RESERVASI ANDA"):
-    baris = [
-        (
-            kode,
-            nama_dari(db["dokter"], db["reservasi"][kode]["id_dokter"]),
-            db["reservasi"][kode]["tanggal"],
-            db["reservasi"][kode]["jam"],
-            db["reservasi"][kode]["status"]
-        )
-        for kode in daftar
-    ]
-
-    tampilkan_tabel(
-        judul_tabel,
-        ("ID", "Dokter", "Tanggal", "Jam", "Status"),
-        baris,
-        kiri=("Dokter", "Status")
-    )
-
-
-def pilih_slot(db, id_dokter, abaikan=None, tanggal_lama=None):
-    """Meminta tanggal lalu jam. Mengembalikan (tanggal, jam) atau None bila dibatalkan."""
-    petunjuk = "Tanggal (YYYY-MM-DD)"
-    if tanggal_lama:
-        petunjuk += ", Enter = tetap " + tanggal_lama
-
-    teks = input(petunjuk + ": ").strip()
-    if teks == "" and tanggal_lama:
-        teks = tanggal_lama
-
-    tanggal = parse_tanggal(teks)
-
-    if tanggal is None:
-        print("Format tanggal salah. Contoh: 2026-11-12")
-        return None
-
-    if tanggal < date.today():
-        print("Tanggal sudah lewat, pilih hari ini atau setelahnya")
-        return None
-
-    tersedia, hari = slot_tersedia(db, id_dokter, tanggal, abaikan)
-
-    if len(tersedia) == 0:
-        print("Tidak ada slot tersedia pada hari", hari, "(dokter tidak praktik / jadwal penuh)")
-        return None
-
-    tampilkan_tabel(
-        "SLOT TERSEDIA - " + hari + ", " + str(tanggal),
-        ("No", "Jam"),
-        [(nomor, jam) for nomor, jam in enumerate(tersedia, 1)]
-    )
-    nomor = ke_angka(input("Pilih nomor slot: "))
-
-    if nomor is None or nomor < 1 or nomor > len(tersedia):
-        print("Pilihan slot tidak valid")
-        return None
-
-    return tanggal, tersedia[nomor - 1]
-
-
 def reservasi_konsultasi(db, user):
-    lihat_dokter(db)
+    """Reservasi_Konsultasi: lihat jadwal/slot, pilih dokter, tanggal, jam."""
+    lihat_jadwal_slot(db)
 
     if len(db["dokter"]) == 0:
         return
 
-    id_dokter = input("ID dokter: ").strip()
+    id_dokter = pilih_id(db["dokter"], "ID dokter: ")
 
-    if id_dokter not in db["dokter"]:
-        print("Dokter dengan ID", id_dokter, "tidak ditemukan")
+    if id_dokter is None:
+        print("Jadwal tidak valid: dokter tidak ditemukan")
         return
 
     hasil = pilih_slot(db, id_dokter)
@@ -95,21 +37,33 @@ def reservasi_konsultasi(db, user):
     print("\nReservasi berhasil dibuat dengan ID", id_baru, "(status: Menunggu)")
 
 
-def ubah_reservasi(db, user):
-    daftar = reservasi_pasien(db, user["id_pasien"], ["Menunggu"])
+def ubah_batal_reservasi(db, user):
+    """Ubah_Batal_Reservasi: hanya reservasi milik sendiri yang masih Menunggu."""
+    from pasien.riwayat import lihat_riwayat_reservasi
 
-    if len(daftar) == 0:
-        print("Tidak ada reservasi (status Menunggu) yang dapat diubah")
-        return
+    lihat_riwayat_reservasi(db, user)
+    id_res = pilih_id(db["reservasi"], "Nomor reservasi: ")
 
-    tampilkan_reservasi(db, daftar, "RESERVASI YANG DAPAT DIUBAH")
-    id_res = input("ID reservasi yang diubah: ").strip()
-
-    if id_res not in daftar:
-        print("ID tidak ada dalam daftar")
+    if id_res is None or db["reservasi"][id_res]["id_pasien"] != user["id_pasien"]:
+        print("Bukan reservasi milik anda")
         return
 
     data = db["reservasi"][id_res]
+
+    if data["status"] != "Menunggu":
+        print("Reservasi berstatus", data["status"], "tidak dapat diubah atau dibatalkan")
+        return
+
+    aksi = pilih_menu("Pilih tindakan", ["Ubah jadwal", "Batalkan reservasi"])
+
+    if aksi == 2:
+        if konfirmasi("Yakin membatalkan reservasi " + id_res):
+            batalkan_reservasi(db, id_res, user["username"])
+            print("Reservasi berhasil diperbarui (status Dibatalkan)")
+        else:
+            print("Pembatalan dibatalkan")
+        return
+
     hasil = pilih_slot(db, data["id_dokter"], id_res, data["tanggal"])
 
     if hasil is None:
@@ -117,25 +71,4 @@ def ubah_reservasi(db, user):
 
     tanggal, jam = hasil
     ubah_jadwal(db, id_res, tanggal, jam, user["username"])
-    print("\nReservasi berhasil diubah")
-
-
-def batalkan_reservasi_pasien(db, user):
-    daftar = reservasi_pasien(db, user["id_pasien"], ["Menunggu"])
-
-    if len(daftar) == 0:
-        print("Tidak ada reservasi (status Menunggu) yang dapat dibatalkan")
-        return
-
-    tampilkan_reservasi(db, daftar, "RESERVASI YANG DAPAT DIBATALKAN")
-    id_res = input("ID reservasi yang dibatalkan: ").strip()
-
-    if id_res not in daftar:
-        print("ID tidak ada dalam daftar")
-        return
-
-    if konfirmasi("Yakin membatalkan reservasi " + id_res):
-        batalkan_reservasi(db, id_res, user["username"])
-        print("\nReservasi berhasil dibatalkan")
-    else:
-        print("Pembatalan dibatalkan")
+    print("Reservasi berhasil diperbarui")

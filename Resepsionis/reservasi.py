@@ -1,323 +1,151 @@
-from datetime import date, timedelta
+from datetime import date
+
 from modules import database
-from modules.utils import (bersihkan_layar, jeda, judul, buat_tabel, id_berikutnya, parse_tanggal, nama_dari)
-from modules.reservasi import catat_log, slot_tersedia
-from resepsionis import pasien
-from resepsionis.pasien import pilih_menu, pilih_data, konfirmasi
-
-STATUS_RESERVASI = ["Menunggu", "Dikonfirmasi", "Selesai", "Dibatalkan"]
-HARI_CARI = 14
-
-
-def pilihan_reservasi(db, status_boleh):
-    pilihan = []
-    for id_res in db["reservasi"]:
-        data = db["reservasi"][id_res]
-        if data["status"] in status_boleh:
-            pilihan.append((id_res + " | " + nama_dari(db["pasien"], data["id_pasien"])
-                            + " | " + nama_dari(db["dokter"], data["id_dokter"])
-                            + " | " + data["tanggal"] + " " + data["jam"] + " | " + data["status"], id_res))
-    return pilihan
+from modules.reservasi import (
+    batalkan_reservasi, buat_reservasi, catat_log, log_jenis, pilih_slot,
+    slot_tersedia, tampilkan_jadwal, tampilkan_reservasi, ubah_jadwal
+)
+from modules.utils import nama_dari, parse_tanggal, pilih_id, pilih_menu, konfirmasi, tampilkan_tabel
+from resepsionis.pasien import tampil_tabel_pasien
 
 
-def pilih_tanggal_dan_jam(db, id_dokter, kecuali_id=None):
-    pilihan_tanggal = []
-    for selisih in range(0, HARI_CARI):
-        tanggal = date.today() + timedelta(days=selisih)
-        tersedia, hari = slot_tersedia(db, id_dokter, tanggal, kecuali_id)
-        if len(tersedia) > 0:
-            pilihan_tanggal.append((hari + ", " + str(tanggal) + " (" + str(len(tersedia)) + " slot)", tanggal))
-    if len(pilihan_tanggal) == 0:
-        print("\n[!] Tidak ada slot tersedia untuk dokter ini dalam " + str(HARI_CARI) + " hari ke depan.")
-        return None, None
-
-    tanggal = pilih_data("Pilih tanggal", pilihan_tanggal)
-    if tanggal == None:
-        return None, None
-
-    tersedia, hari = slot_tersedia(db, id_dokter, tanggal, kecuali_id)
-    pilihan_jam = []
-    for jam in tersedia:
-        pilihan_jam.append((jam, jam))
-    jam = pilih_data("Pilih jam", pilihan_jam)
-    if jam == None:
-        return None, None
-    return tanggal, jam
-
-
-def lihat_jadwal_dokter(db):
-    bersihkan_layar()
-    judul("JADWAL PRAKTIK DOKTER")
-    if len(db["jadwal"]) == 0:
-        print(" Belum ada jadwal praktik.")
-        jeda()
-        return
-
-    tabel = buat_tabel(["Dokter", "Spesialisasi", "Hari", "Jam Praktik"], ["Dokter", "Spesialisasi", "Jam Praktik"])
-    for id_jadwal in db["jadwal"]:
-        jadwal = db["jadwal"][id_jadwal]
-        spesialisasi = "-"
-        if jadwal["id_dokter"] in db["dokter"]:
-            spesialisasi = db["dokter"][jadwal["id_dokter"]]["spesialisasi"]
-        tabel.add_row([nama_dari(db["dokter"], jadwal["id_dokter"]), spesialisasi, jadwal["hari"], ", ".join(jadwal["jam"])])
-    print(tabel)
-    jeda()
-
-
-def cek_slot_tersedia(db):
-    bersihkan_layar()
-    judul("CEK SLOT TERSEDIA")
-    id_dokter = pilih_data("Pilih dokter", pasien.pilihan_dokter(db))
-    if id_dokter == None:
-        return
-
-    tabel = buat_tabel(["Tanggal", "Hari", "Jam Tersedia"], ["Jam Tersedia"])
-    jumlah_hari = 0
-    for selisih in range(0, HARI_CARI):
-        tanggal = date.today() + timedelta(days=selisih)
-        tersedia, hari = slot_tersedia(db, id_dokter, tanggal)
-        if len(tersedia) > 0:
-            jumlah_hari = jumlah_hari + 1
-            tabel.add_row([str(tanggal), hari, ", ".join(tersedia)])
-
-    print("\n" + nama_dari(db["dokter"], id_dokter) + " - " + str(HARI_CARI) + " hari ke depan")
-    if jumlah_hari == 0:
-        print("[!] Tidak ada slot tersedia.")
-    else:
-        print(tabel)
-    jeda()
+def lihat_jadwal(db):
+    """Lihat_Jadwal."""
+    tampilkan_jadwal(db)
 
 
 def buat_reservasi_manual(db, user):
-    bersihkan_layar()
-    judul("BUAT RESERVASI MANUAL")
-    if len(db["pasien"]) == 0 or len(db["dokter"]) == 0:
-        print(" Data pasien / dokter masih kosong.")
-        jeda()
+    """Buat_Reservasi: pasien dicari lewat ID, lalu pilih dokter, tanggal, jam."""
+    if len(db["pasien"]) > 0:
+        tampil_tabel_pasien(db)
+
+    id_pasien = pilih_id(db["pasien"], "ID pasien: ")
+
+    if id_pasien is None:
+        print("Pasien tidak ditemukan")
         return
 
-    id_pasien = pilih_data("Pilih pasien", pasien.pilihan_pasien(db))
-    if id_pasien == None:
-        return
-    id_dokter = pilih_data("Pilih dokter", pasien.pilihan_dokter(db))
-    if id_dokter == None:
+    if not tampilkan_jadwal(db):
         return
 
-    tanggal, jam = pilih_tanggal_dan_jam(db, id_dokter)
-    if tanggal == None:
-        jeda()
+    id_dokter = pilih_id(db["dokter"], "ID dokter: ")
+
+    if id_dokter is None:
+        print("Reservasi ditolak: dokter tidak ditemukan")
         return
 
-    print("\nRingkasan reservasi")
-    print(" Pasien  : " + nama_dari(db["pasien"], id_pasien))
-    print(" Dokter  : " + nama_dari(db["dokter"], id_dokter))
-    print(" Jadwal  : " + str(tanggal) + " pukul " + jam)
-    if konfirmasi("Simpan reservasi ini?") == False:
-        print("\n[*] Reservasi dibatalkan.")
-        jeda()
+    hasil = pilih_slot(db, id_dokter)
+
+    if hasil is None:
         return
 
-    id_baru = id_berikutnya(db["reservasi"])
-    db["reservasi"][id_baru] = {
-        "id_pasien": id_pasien, "id_dokter": id_dokter,
-        "tanggal": str(tanggal), "jam": jam,
-        "status": "Menunggu", "dibuat_oleh": user
-    }
-    catat_log(db, id_baru, id_pasien, "BUAT",
-              str(tanggal) + " " + jam + " dengan " + nama_dari(db["dokter"], id_dokter), user)
-    database.simpan(db, ["reservasi", "log_riwayat"])
-    print("\n[+] Reservasi berhasil dibuat. Nomor reservasi : " + id_baru)
-    jeda()
+    tanggal, jam = hasil
+    id_baru = buat_reservasi(db, id_pasien, id_dokter, tanggal, jam, user)
+    print("\nReservasi berhasil dibuat dengan ID", id_baru, "(status: Menunggu)")
 
 
-def ubah_reservasi_pasien(db, user):
-    bersihkan_layar()
-    judul("UBAH RESERVASI")
-    pilihan = pilihan_reservasi(db, ["Menunggu", "Dikonfirmasi"])
-    if len(pilihan) == 0:
-        print(" Tidak ada reservasi yang dapat diubah.")
-        jeda()
-        return
+def ubah_batal_reservasi(db, user):
+    """Ubah_Batal_Reservasi: ubah jadwal atau batalkan."""
+    daftar = [k for k, v in db["reservasi"].items() if v["status"] in database.STATUS_AKTIF]
+    if len(daftar) > 0:
+        tampilkan_reservasi(db, daftar, "RESERVASI AKTIF")
 
-    id_res = pilih_data("Pilih reservasi yang diubah", pilihan)
-    if id_res == None:
+    id_res = pilih_id(db["reservasi"], "Nomor reservasi: ")
+
+    if id_res is None or db["reservasi"][id_res]["status"] in ("Selesai", "Dibatalkan"):
+        print("Reservasi tidak ada atau sudah selesai")
         return
 
     data = db["reservasi"][id_res]
-    tanggal, jam = pilih_tanggal_dan_jam(db, data["id_dokter"], id_res)
-    if tanggal == None:
-        jeda()
+    aksi = pilih_menu("Pilih tindakan", ["Ubah jadwal", "Batalkan reservasi"])
+
+    if aksi == 2:
+        if konfirmasi("Batalkan reservasi " + id_res):
+            batalkan_reservasi(db, id_res, user)
+            print("Reservasi berhasil diperbarui (status Dibatalkan)")
+        else:
+            print("Pembatalan dibatalkan")
         return
 
-    lama = data["tanggal"] + " " + data["jam"]
-    data["tanggal"] = str(tanggal)
-    data["jam"] = jam
-    catat_log(db, id_res, data["id_pasien"], "UBAH", lama + " -> " + data["tanggal"] + " " + data["jam"], user)
-    database.simpan(db, ["reservasi", "log_riwayat"])
-    print("\n[+] Reservasi berhasil diubah.")
-    jeda()
+    hasil = pilih_slot(db, data["id_dokter"], id_res, data["tanggal"])
 
-
-def batalkan_reservasi_pasien(db, user):
-    bersihkan_layar()
-    judul("BATALKAN RESERVASI")
-    pilihan = pilihan_reservasi(db, ["Menunggu", "Dikonfirmasi"])
-    if len(pilihan) == 0:
-        print(" Tidak ada reservasi yang dapat dibatalkan.")
-        jeda()
+    if hasil is None:
         return
 
-    id_res = pilih_data("Pilih reservasi yang dibatalkan", pilihan)
-    if id_res == None:
-        return
-
-    if konfirmasi("Yakin membatalkan reservasi " + id_res + "?"):
-        data = db["reservasi"][id_res]
-        data["status"] = "Dibatalkan"
-        catat_log(db, id_res, data["id_pasien"], "BATAL", data["tanggal"] + " " + data["jam"], user)
-        database.simpan(db, ["reservasi", "log_riwayat"])
-        print("\n[+] Reservasi berhasil dibatalkan (slot kembali tersedia).")
-    else:
-        print("\n[*] Pembatalan dibatalkan.")
-    jeda()
+    tanggal, jam = hasil
+    ubah_jadwal(db, id_res, tanggal, jam, user)
+    print("Reservasi berhasil diperbarui")
 
 
 def konfirmasi_kedatangan(db, user):
-    bersihkan_layar()
-    judul("KONFIRMASI KEDATANGAN PASIEN")
-    pilihan = pilihan_reservasi(db, ["Menunggu"])
-    if len(pilihan) == 0:
-        print(" Tidak ada reservasi berstatus Menunggu.")
-        jeda()
-        return
+    """Konfirmasi_Kedatangan: reservasi Menunggu pada hari ini -> status Hadir."""
+    id_res = pilih_id(db["reservasi"], "Nomor reservasi: ")
 
-    id_res = pilih_data("Pilih reservasi pasien yang datang", pilihan)
-    if id_res == None:
+    if (id_res is None or db["reservasi"][id_res]["status"] != "Menunggu"
+            or db["reservasi"][id_res]["tanggal"] != str(date.today())):
+        print("Reservasi tidak valid atau bukan hari ini")
         return
 
     data = db["reservasi"][id_res]
-    if data["tanggal"] != str(date.today()):
-        print("\n[!] Tanggal reservasi (" + data["tanggal"] + ") bukan hari ini.")
-        if konfirmasi("Tetap konfirmasi kedatangan?") == False:
-            print("\n[*] Konfirmasi dibatalkan.")
-            jeda()
-            return
-
-    data["status"] = "Dikonfirmasi"
-    catat_log(db, id_res, data["id_pasien"], "KONFIRMASI", "Pasien hadir, status -> Dikonfirmasi", user)
+    data["status"] = "Hadir"
+    catat_log(db, id_res, data["id_pasien"], "HADIR", "Status Menunggu -> Hadir", user)
     database.simpan(db, ["reservasi", "log_riwayat"])
-    print("\n[+] Kedatangan pasien dikonfirmasi.")
-    jeda()
+    print("Kedatangan pasien dikonfirmasi")
 
 
-def kelola_status_reservasi(db, user):
-    bersihkan_layar()
-    judul("KELOLA STATUS RESERVASI")
-    pilihan = pilihan_reservasi(db, STATUS_RESERVASI)
-    if len(pilihan) == 0:
-        print(" Belum ada data reservasi.")
-        jeda()
+def status_reservasi(db, user):
+    """Status_Reservasi: ubah status (Menunggu/Hadir/Selesai/Dibatalkan)."""
+    if len(db["reservasi"]) == 0:
+        print("Data belum tersedia")
         return
 
-    id_res = pilih_data("Pilih reservasi", pilihan)
-    if id_res == None:
+    tampilkan_reservasi(db, list(db["reservasi"]), "SEMUA RESERVASI")
+    id_res = pilih_id(db["reservasi"], "Nomor reservasi: ")
+
+    if id_res is None:
+        print("Nomor tidak valid")
         return
 
     data = db["reservasi"][id_res]
-    print("\nStatus saat ini : " + data["status"])
-    pilihan_status = []
-    for status in STATUS_RESERVASI:
-        pilihan_status.append((status, status))
-    status_baru = pilih_data("Pilih status baru", pilihan_status)
-    if status_baru == None:
+    print("Status saat ini:", data["status"])
+    baru = input("Status baru (" + "/".join(database.STATUS_RESERVASI) + "): ").strip().capitalize()
+
+    if baru not in database.STATUS_RESERVASI:
+        print("Status tidak valid")
         return
-    if status_baru == data["status"]:
-        print("\n[*] Status tidak berubah.")
-        jeda()
+
+    if baru == data["status"]:
+        print("Status tidak berubah")
         return
 
     if data["status"] == "Dibatalkan":
         tersedia, hari = slot_tersedia(db, data["id_dokter"], parse_tanggal(data["tanggal"]), id_res)
         if data["jam"] not in tersedia:
-            print("\n[!] Slot " + data["tanggal"] + " " + data["jam"] + " sudah terisi / tidak tersedia.")
-            jeda()
+            print("Status tidak bisa diubah: slot " + data["tanggal"] + " " + data["jam"] + " sudah terisi")
             return
 
     lama = data["status"]
-    data["status"] = status_baru
-    catat_log(db, id_res, data["id_pasien"], "STATUS", lama + " -> " + status_baru, user)
+    data["status"] = baru
+    catat_log(db, id_res, data["id_pasien"], "STATUS", lama + " -> " + baru, user)
     database.simpan(db, ["reservasi", "log_riwayat"])
-    print("\n[+] Status reservasi diubah: " + lama + " -> " + status_baru)
-    jeda()
+    print("Status berhasil diubah: " + lama + " -> " + baru)
 
 
-def ambil_waktu(item):
-    return item[1]["waktu"]
+def log_jadwal(db):
+    """Log_Jadwal: riwayat perubahan jadwal reservasi."""
+    log = log_jenis(db, "reservasi")
 
-
-def lihat_log_riwayat(db):
-    bersihkan_layar()
-    judul("LOG RIWAYAT JADWAL PASIEN")
-    if len(db["log_riwayat"]) == 0:
-        print(" Belum ada log riwayat.")
-        jeda()
+    if len(log) == 0:
+        print("\nData belum tersedia")
         return
 
-    pilihan = [("Semua pasien", "")]
-    for item in pasien.pilihan_pasien(db):
-        pilihan.append(item)
-    filter_id = pilih_data("Lihat log milik", pilihan)
-    if filter_id == None:
-        return
-
-    urut = sorted(db["log_riwayat"].items(), key=ambil_waktu)
-    tabel = buat_tabel(["No", "Waktu", "ID Res", "Pasien", "Aksi", "Detail", "Oleh"], ["Pasien", "Detail", "Oleh"])
-    nomor = 0
-    for id_log, log in urut:
-        if filter_id == "" or log["id_pasien"] == filter_id:
-            nomor = nomor + 1
-            tabel.add_row([nomor, log["waktu"], log["id_reservasi"],
-                           nama_dari(db["pasien"], log["id_pasien"]), log["aksi"], log["detail"], log["oleh"]])
-    if nomor == 0:
-        print("\n Tidak ada log untuk pasien tersebut.")
-    else:
-        print(tabel)
-    jeda()
-
-
-def menu_reservasi(db, user):
-    daftar_menu = [
-        "Lihat Jadwal Praktik Dokter",
-        "Cek Slot Tersedia",
-        "Buat Reservasi Manual",
-        "Ubah Reservasi",
-        "Batalkan Reservasi",
-        "Konfirmasi Kedatangan Pasien",
-        "Kelola Status Reservasi",
-        "Lihat Log Riwayat Jadwal",
-        "Kembali ke Dashboard"
-    ]
-    jalan = True
-    while jalan:
-        bersihkan_layar()
-        judul("KELOLA RESERVASI")
-        pilihan = pilih_menu("Pilih menu (panah atas/bawah, Enter untuk memilih)", daftar_menu)
-
-        if pilihan == "Lihat Jadwal Praktik Dokter":
-            lihat_jadwal_dokter(db)
-        elif pilihan == "Cek Slot Tersedia":
-            cek_slot_tersedia(db)
-        elif pilihan == "Buat Reservasi Manual":
-            buat_reservasi_manual(db, user)
-        elif pilihan == "Ubah Reservasi":
-            ubah_reservasi_pasien(db, user)
-        elif pilihan == "Batalkan Reservasi":
-            batalkan_reservasi_pasien(db, user)
-        elif pilihan == "Konfirmasi Kedatangan Pasien":
-            konfirmasi_kedatangan(db, user)
-        elif pilihan == "Kelola Status Reservasi":
-            kelola_status_reservasi(db, user)
-        elif pilihan == "Lihat Log Riwayat Jadwal":
-            lihat_log_riwayat(db)
-        elif pilihan == "Kembali ke Dashboard":
-            jalan = False
+    tampilkan_tabel(
+        "LOG RIWAYAT JADWAL PASIEN",
+        ("Waktu", "ID Res", "Pasien", "Aksi", "Detail", "Oleh"),
+        [
+            (isi["waktu"], isi["id_reservasi"], nama_dari(db["pasien"], isi["id_pasien"]),
+             isi["aksi"], isi["detail"], isi["oleh"])
+            for isi in log
+        ],
+        kiri=("Pasien", "Detail", "Oleh")
+    )

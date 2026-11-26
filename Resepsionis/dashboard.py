@@ -1,83 +1,76 @@
-import inquirer
 from datetime import date
-from modules import database
-from modules.utils import bersihkan_layar, buat_tabel, judul
-from resepsionis import pasien, reservasi, pembayaran
 
+from modules import database
+from modules.utils import bersihkan_layar, jeda, pilih_menu, tampilkan_tabel
+from resepsionis import pasien, pembayaran, reservasi
 
 TABEL_RESEPSIONIS = ["pasien", "dokter", "jadwal", "reservasi", "log_riwayat", "obat", "transaksi"]
 
 
 def tampil_ringkasan(db, username):
     hari_ini = str(date.today())
-    reservasi_hari_ini = 0
-    menunggu_konfirmasi = 0
-    tagihan_belum_lunas = 0
-
-    for id_res in db["reservasi"]:
-        data = db["reservasi"][id_res]
-        if data["tanggal"] == hari_ini and data["status"] != "Dibatalkan":
-            reservasi_hari_ini = reservasi_hari_ini + 1
-        if data["status"] == "Menunggu":
-            menunggu_konfirmasi = menunggu_konfirmasi + 1
-
-    for id_trx in db["transaksi"]:
-        if db["transaksi"][id_trx]["status_bayar"] != "Lunas":
-            tagihan_belum_lunas = tagihan_belum_lunas + 1
-
-    judul("DASHBOARD RESEPSIONIS")
-    print("  User    : " + username)
-    print("  Tanggal : " + hari_ini)
-    tabel = buat_tabel(["Ringkasan", "Jumlah"], ["Ringkasan"])
-    tabel.add_row(["Total pasien terdaftar", len(db["pasien"])])
-    tabel.add_row(["Reservasi hari ini", reservasi_hari_ini])
-    tabel.add_row(["Reservasi menunggu konfirmasi", menunggu_konfirmasi])
-    tabel.add_row(["Tagihan belum lunas", tagihan_belum_lunas])
-    print(tabel)
-
-
-def pilih_menu(daftar_menu):
-    pertanyaan = [
-        inquirer.List(
-            "menu",
-            message="Pilih menu (panah atas/bawah, Enter untuk memilih)",
-            choices=daftar_menu
-        )
-    ]
-    jawaban = inquirer.prompt(pertanyaan)
-    if jawaban == None:
-        return "Logout"
-    return jawaban["menu"]
+    baris = (
+        ("User", username),
+        ("Tanggal", hari_ini),
+        ("Total pasien terdaftar", len(db["pasien"])),
+        ("Reservasi hari ini", sum(1 for v in db["reservasi"].values() if v["tanggal"] == hari_ini and v["status"] != "Dibatalkan")),
+        ("Reservasi menunggu", sum(1 for v in db["reservasi"].values() if v["status"] == "Menunggu")),
+        ("Tagihan belum lunas", sum(1 for v in db["transaksi"].values() if v["status_bayar"] in ("Belum Dibayar", "Menunggu Pembayaran"))),
+    )
+    tampilkan_tabel("DASHBOARD RESEPSIONIS", ("Keterangan", "Nilai"), baris, kiri=("Keterangan", "Nilai"))
 
 
 def menu_resepsionis(username="resepsionis"):
-    db = database.muat_database(TABEL_RESEPSIONIS)
     daftar_menu = [
-        "Kelola Pasien",
-        "Kelola Reservasi",
-        "Kelola Pembayaran",
+        "Daftarkan Pasien Baru",
+        "Lihat Data Pasien, Dokter, dan Harga",
+        "Lihat Jadwal Praktik",
+        "Buat Reservasi Manual",
+        "Ubah atau Batalkan Reservasi",
+        "Konfirmasi Kedatangan",
+        "Kelola Status Reservasi",
+        "Lihat Log Riwayat Jadwal",
+        "Input Obat Resep",
+        "Buat Tagihan",
+        "Proses Pembayaran",
+        "Cetak Struk",
         "Logout"
     ]
 
-    sesi_jalan = True
-    while sesi_jalan:
+    while True:
+        db = database.muat_database(TABEL_RESEPSIONIS)
         bersihkan_layar()
         tampil_ringkasan(db, username)
-        pilihan = pilih_menu(daftar_menu)
+        pilihan = pilih_menu("MENU RESEPSIONIS", daftar_menu)
 
-        if pilihan == "Kelola Pasien":
-            pasien.menu_pasien(db, username)
-        elif pilihan == "Kelola Reservasi":
-            reservasi.menu_reservasi(db, username)
-        elif pilihan == "Kelola Pembayaran":
-            pembayaran.menu_pembayaran(db, username)
-        elif pilihan == "Logout":
-            print("\n[*] Logout berhasil, kembali ke menu utama.")
-            sesi_jalan = False
+        if pilihan == 13:
+            bersihkan_layar()
+            print("Logout berhasil")
+            return "logout"
 
+        if pilihan == 1:
+            pasien.daftar_pasien(db)
+        elif pilihan == 2:
+            pasien.lihat_data(db)
+        elif pilihan == 3:
+            reservasi.lihat_jadwal(db)
+        elif pilihan == 4:
+            reservasi.buat_reservasi_manual(db, username)
+        elif pilihan == 5:
+            reservasi.ubah_batal_reservasi(db, username)
+        elif pilihan == 6:
+            reservasi.konfirmasi_kedatangan(db, username)
+        elif pilihan == 7:
+            reservasi.status_reservasi(db, username)
+        elif pilihan == 8:
+            reservasi.log_jadwal(db)
+        elif pilihan == 9:
+            pembayaran.input_obat_resep(db, username)
+        elif pilihan == 10:
+            pembayaran.buat_tagihan(db, username)
+        elif pilihan == 11:
+            pembayaran.proses_pembayaran(db, username)
+        elif pilihan == 12:
+            pembayaran.cetak_struk(db)
 
-if __name__ == "__main__":
-    try:
-        menu_resepsionis("resepsionis")
-    except (KeyboardInterrupt, EOFError):
-        print("\n\n[!] Program dihentikan oleh pengguna.")
+        jeda()

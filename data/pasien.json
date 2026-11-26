@@ -2,11 +2,13 @@
     "1": {
         "nama": "Ariel",
         "no_hp": "081234567890",
-        "alamat": "Jl. Mawar No. 1, Samarinda"
+        "alamat": "Jl. Mawar No. 1, Samarinda",
+        "tgl_lahir": "-"
     },
     "2": {
         "nama": "Budi Santoso",
         "no_hp": "082198765432",
-        "alamat": "Jl. Melati No. 5, Samarinda"
+        "alamat": "Jl. Melati No. 5, Samarinda",
+        "tgl_lahir": "-"
     }
 }

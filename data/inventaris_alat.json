@@ -2,26 +2,41 @@
     "1": {
         "nama": "Stetoskop",
         "jumlah": 8,
-        "kondisi": "Baik"
+        "kondisi": "Baik",
+        "kategori": "Peralatan Medis",
+        "tgl_pembelian": "2026-01-01",
+        "lokasi": "Ruang Praktik"
     },
     "2": {
         "nama": "Tensimeter Digital",
         "jumlah": 5,
-        "kondisi": "Baik"
+        "kondisi": "Baik",
+        "kategori": "Peralatan Medis",
+        "tgl_pembelian": "2026-01-01",
+        "lokasi": "Ruang Praktik"
     },
     "3": {
         "nama": "Kursi Dental",
         "jumlah": 2,
-        "kondisi": "Perawatan"
+        "kondisi": "Dalam perbaikan",
+        "kategori": "Peralatan Medis",
+        "tgl_pembelian": "2026-01-01",
+        "lokasi": "Ruang Praktik"
     },
     "4": {
         "nama": "Termometer Infrared",
         "jumlah": 6,
-        "kondisi": "Baik"
+        "kondisi": "Baik",
+        "kategori": "Peralatan Medis",
+        "tgl_pembelian": "2026-01-01",
+        "lokasi": "Ruang Praktik"
     },
     "5": {
         "nama": "Autoclave",
         "jumlah": 1,
-        "kondisi": "Rusak"
+        "kondisi": "Rusak",
+        "kategori": "Peralatan Medis",
+        "tgl_pembelian": "2026-01-01",
+        "lokasi": "Ruang Praktik"
     }
 }

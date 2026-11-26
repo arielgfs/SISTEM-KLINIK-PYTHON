@@ -11,15 +11,9 @@ SEMUA_TABEL = [
 
 DAFTAR_HARI = ("Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu")
 
-
-JAM_PRAKTIK = (
-    ("08:00", "12:00"),
-    ("13:00", "17:00"),
-    ("18:00", "21:00")
-)
-
-KONDISI_ALAT = ("Baik", "Perawatan", "Rusak")
-STATUS_AKTIF = {"Menunggu", "Dikonfirmasi"}
+KONDISI_ALAT = ("Baik", "Rusak", "Dalam perbaikan")
+STATUS_RESERVASI = ("Menunggu", "Hadir", "Selesai", "Dibatalkan")
+STATUS_AKTIF = {"Menunggu", "Hadir"}
 BATAS_LOGIN = 3
 
 

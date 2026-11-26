@@ -1,24 +1,21 @@
-import os
-
 from modules.pembayaran import transaksi_milik_pasien
-from modules.utils import format_rupiah, konfirmasi, nama_dari, tampilkan_tabel
-from pasien.reservasi import reservasi_pasien, tampilkan_reservasi
+from modules.reservasi import log_jenis, tampilkan_reservasi
+from modules.utils import format_rupiah, konfirmasi, pilih_id, tampilkan_tabel
+from pasien.reservasi import reservasi_pasien
 from resepsionis import struk
 
 
-def lihat_riwayat(db, user):
+def lihat_riwayat_reservasi(db, user):
+    """Lihat_Riwayat_Reservasi: status dan riwayat reservasi pribadi."""
     daftar = reservasi_pasien(db, user["id_pasien"])
 
     if len(daftar) == 0:
-        print("\nAnda belum memiliki reservasi")
+        print("\nData belum tersedia")
         return
 
-    tampilkan_reservasi(db, daftar, "STATUS & RIWAYAT RESERVASI")
+    tampilkan_reservasi(db, daftar, "STATUS DAN RIWAYAT RESERVASI")
 
-    log = sorted(
-        (isi for isi in db["log_riwayat"].values() if isi["id_pasien"] == user["id_pasien"]),
-        key=lambda isi: isi["waktu"]
-    )
+    log = [isi for isi in log_jenis(db, "reservasi") if isi["id_pasien"] == user["id_pasien"]]
 
     if len(log) > 0:
         tampilkan_tabel(
@@ -29,50 +26,66 @@ def lihat_riwayat(db, user):
         )
 
 
-def lihat_tagihan(db, user):
-    daftar = transaksi_milik_pasien(db, user["id_pasien"])
-
-    if len(daftar) == 0:
-        print("\nAnda belum memiliki tagihan")
-        return
-
+def tabel_transaksi(db, daftar, judul_tabel):
     tampilkan_tabel(
-        "TAGIHAN & RIWAYAT PEMBAYARAN",
-        ("ID", "No. Transaksi", "Dokter", "Tanggal", "Total", "Status"),
+        judul_tabel,
+        ("ID", "No. Transaksi", "Tanggal", "Total", "Metode", "Status"),
         [
-            (
-                kode,
-                struk.nomor_transaksi(kode),
-                nama_dari(db["dokter"], db["transaksi"][kode]["id_dokter"]),
-                db["transaksi"][kode]["tanggal"],
-                format_rupiah(db["transaksi"][kode]["total"]),
-                db["transaksi"][kode]["status_bayar"]
-            )
+            (kode, struk.nomor_transaksi(kode), db["transaksi"][kode]["tanggal"],
+             format_rupiah(db["transaksi"][kode]["total"]), db["transaksi"][kode]["metode"] or "-",
+             db["transaksi"][kode]["status_bayar"])
             for kode in daftar
         ],
-        kiri=("Dokter", "Status"),
+        kiri=("Status",),
         kanan=("Total",)
     )
 
-    id_trx = input("ID transaksi untuk melihat struk (Enter = kembali): ").strip()
 
-    if id_trx == "":
+def lihat_tagihan(db, user):
+    """Lihat_Tagihan: rincian tagihan, biaya jasa, dan obat."""
+    daftar = transaksi_milik_pasien(db, user["id_pasien"])
+
+    if len(daftar) == 0:
+        print("\nData belum tersedia")
         return
 
-    if id_trx not in daftar:
-        print("ID transaksi tidak ditemukan")
+    tabel_transaksi(db, daftar, "TAGIHAN ANDA")
+    id_trx = pilih_id(daftar, "ID transaksi untuk melihat rincian (Enter = kembali): ")
+
+    if id_trx is not None:
+        print()
+        struk.tampil_rincian(db, id_trx)
+
+
+def riwayat_pembayaran(db, user):
+    """Riwayat_Pembayaran: transaksi yang sudah diproses pembayarannya."""
+    daftar = [
+        kode for kode in transaksi_milik_pasien(db, user["id_pasien"])
+        if db["transaksi"][kode]["status_bayar"] != "Belum Dibayar"
+    ]
+
+    if len(daftar) == 0:
+        print("\nData belum tersedia")
         return
 
-    if db["transaksi"][id_trx]["status_bayar"] != "Lunas":
-        print("Struk hanya tersedia untuk transaksi berstatus Lunas")
+    tabel_transaksi(db, daftar, "RIWAYAT PEMBAYARAN")
+
+
+def unduh_struk(db, user):
+    """Unduh_Struk: hanya transaksi milik sendiri yang Lunas."""
+    milik = transaksi_milik_pasien(db, user["id_pasien"])
+
+    if len(milik) > 0:
+        tabel_transaksi(db, milik, "TRANSAKSI ANDA")
+
+    id_trx = input("Nomor transaksi: ").strip()
+
+    if id_trx not in milik or db["transaksi"][id_trx]["status_bayar"] != "Lunas":
+        print("Transaksi tidak ada atau belum lunas")
         return
 
     print()
     print(struk.buat_teks_struk(db, id_trx))
 
-    if konfirmasi("\nUnduh struk ke file .txt"):
-        os.makedirs(struk.FOLDER_STRUK, exist_ok=True)
-        jalur = os.path.join(struk.FOLDER_STRUK, struk.nomor_transaksi(id_trx) + ".txt")
-        with open(jalur, "w", encoding="utf-8") as berkas:
-            berkas.write(struk.buat_teks_struk(db, id_trx) + "\n")
-        print("Struk disimpan di:", jalur)
+    if konfirmasi("\nSimpan struk ke file .txt"):
+        print("Struk disimpan di:", struk.simpan_struk(db, id_trx))
