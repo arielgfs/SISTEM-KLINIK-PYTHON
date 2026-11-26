@@ -22,5 +22,13 @@
         "jam": "09:00",
         "status": "Menunggu",
         "dibuat_oleh": "ariel"
+    },
+    "4": {
+        "id_pasien": "3",
+        "id_dokter": "2",
+        "tanggal": "2026-12-04",
+        "jam": "14:00",
+        "status": "Menunggu",
+        "dibuat_oleh": "syid"
     }
 }

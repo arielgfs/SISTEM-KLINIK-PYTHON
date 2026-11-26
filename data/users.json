@@ -20,5 +20,11 @@
         "role": "pasien",
         "nama": "Budi Santoso",
         "id_pasien": "2"
+    },
+    "syid": {
+        "password": "Rasyid270326",
+        "role": "pasien",
+        "nama": "Rasyid Ridha",
+        "id_pasien": "3"
     }
 }

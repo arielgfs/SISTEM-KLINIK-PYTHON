@@ -16,5 +16,14 @@
         "oleh": "ariel",
         "waktu": "2026-11-25 19:20:31",
         "jenis": "reservasi"
+    },
+    "3": {
+        "jenis": "reservasi",
+        "id_reservasi": "4",
+        "id_pasien": "3",
+        "aksi": "BUAT",
+        "detail": "2026-12-04 14:00 dengan dr. Sinta, Sp.A",
+        "oleh": "syid",
+        "waktu": "2026-11-26 16:48:29"
     }
 }

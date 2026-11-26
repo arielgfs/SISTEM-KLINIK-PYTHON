@@ -6,11 +6,11 @@ from resepsionis.dashboard import menu_resepsionis
 from pasien.dashboard import menu_pasien
 
 
-def jalankan_menu_role(user):
+def jalankan_menu_role(user): 
     role = user["role"]
 
     if role == "admin":
-        return menu_admin(user["username"])
+        return menu_admin()
 
     if role == "resepsionis":
         return menu_resepsionis(user["username"])
@@ -25,27 +25,28 @@ def jalankan_menu_role(user):
 
 def main():
     daftar_menu = [
-        "Register Pasien",
         "Login",
-        "Keluar Program"
+        "Registrasi Pasien Baru",
+        "Keluar dari Program"
     ]
 
     while True:
         bersihkan_layar()
-        pilihan = pilih_menu("MENU AWAL", daftar_menu)
+        pilihan = pilih_menu("SELAMAT DATANG DI SISTEM KLINIK", daftar_menu)
 
         if pilihan == 1:
-            proses_register()
-
-        elif pilihan == 2:
             user = proses_login()
 
             if user is None:
-                print("\nAkses ditolak. Kesempatan login habis")
+                print("\nKesempatan login habis")
                 jeda("Tekan Enter untuk kembali...")
                 continue
 
-            jalankan_menu_role(user)
+            if jalankan_menu_role(user) == "keluar":
+                return
+
+        elif pilihan == 2:
+            proses_register()
 
         elif pilihan == 3:
             bersihkan_layar()
@@ -58,3 +59,4 @@ if __name__ == "__main__":
         main()
     except (KeyboardInterrupt, EOFError):
         print("\n\nProgram dihentikan oleh pengguna.")
+

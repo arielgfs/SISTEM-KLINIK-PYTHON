@@ -21,7 +21,7 @@ def reservasi_konsultasi(db, user):
     if len(db["dokter"]) == 0:
         return
 
-    id_dokter = pilih_id(db["dokter"], "ID dokter: ")
+    id_dokter = pilih_id(db["dokter"], "Masukkan ID Dokter: ")
 
     if id_dokter is None:
         print("Jadwal tidak valid: dokter tidak ditemukan")
