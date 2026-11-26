@@ -17,19 +17,22 @@ def lihat_jadwal_slot(db):
             tanggal += timedelta(days=1)
 
         dokter = db["dokter"].get(data["id_dokter"])
+        
         baris.append((
-            kode,
-            nama_dari(db["dokter"], data["id_dokter"]),
-            dokter["spesialisasi"] if dokter else "-",
-            data["hari"],
-            data["jam_mulai"] + " - " + data["jam_selesai"],
-            str(tanggal),
-            sisa_kuota(db, data["id_dokter"], tanggal)
-        ))
+        kode,
+        data["id_dokter"],
+        nama_dari(db["dokter"], data["id_dokter"]),
+        dokter["spesialisasi"] if dokter else "-",
+        data["hari"],
+        data["jam_mulai"] + " - " + data["jam_selesai"],
+        str(tanggal),
+        sisa_kuota(db, data["id_dokter"], tanggal)
+    ))
 
     tampilkan_tabel(
         "JADWAL PRAKTIK DAN SLOT TERSEDIA",
-        ("ID", "Dokter", "Spesialisasi", "Hari", "Jam Praktik", "Tanggal Terdekat", "Sisa Slot"),
+        ("ID Jadwal", "ID Dokter", "Dokter", "Spesialisasi",
+         "Hari", "Jam Praktik", "Tanggal Terdekat", "Sisa Slot"),
         baris,
         kiri=("Dokter", "Spesialisasi")
     )
